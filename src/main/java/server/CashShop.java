@@ -248,6 +248,7 @@ public class CashShop {
                 int itemId = DataTool.getIntConvert("ItemId", item);
                 int price = YamlConfig.config.server.USE_FREE_CASH_SHOP_ITEMS ? 0
                         : DataTool.getIntConvert("Price", item, 0);
+                System.out.println("ItemID:" + itemId + " Price:" + price);
                 long period = DataTool.getIntConvert("Period", item, 1);
                 short count = YamlConfig.config.server.USE_LARGE_STACK_CASH_SHOP_ITEMS ? 1000
                         : (short) DataTool.getIntConvert("Count", item, 1);
