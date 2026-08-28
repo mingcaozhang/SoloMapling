@@ -26,7 +26,7 @@ public class MapleVersionManager {
     }
 
     @SuppressWarnings("unchecked")
-    private static void loadFromYaml(String yamlFilePath, String fieldName) {
+    private static Map<String, Map<String, String>> loadFromYaml(String yamlFilePath) {
         try (InputStream inputStream = MapleVersionManager.class.getClassLoader().getResourceAsStream(yamlFilePath)) {
             if (inputStream == null) {
                 throw new IllegalArgumentException("Resource not found: " + yamlFilePath);
@@ -34,16 +34,24 @@ public class MapleVersionManager {
 
             try (YamlReader reader = new YamlReader(new InputStreamReader(inputStream))) {
                 Map<String, Map<String, String>> data = (Map<String, Map<String, String>>) reader.read();
-                npcReleaseVersions = data.get(fieldName);
+                return data;
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
+    public static void loadNpcVersions() {
+        npcReleaseVersions = loadFromYaml(npcVersionYaml).get("npc_versions");
+    }
+
+    public static void loadPortalVersions() {
+        portalReleaseVersions = loadFromYaml(portalVersionYaml).get("portal_versions");
+    }
+
     public static boolean isNPCinCurrentVersion(int npcId) {
         if (npcReleaseVersions == null) {
-            loadFromYaml(npcVersionYaml, "npc_versions");
+            loadNpcVersions();
         }
 
         String npcVersion = (npcReleaseVersions.get((String.valueOf(npcId))));
@@ -56,7 +64,7 @@ public class MapleVersionManager {
 
     public static boolean isPortalinCurrentVersion(int portalId) {
         if (portalReleaseVersions == null) {
-            loadFromYaml(portalVersionYaml, "portal_versions");
+            loadPortalVersions();
         }
 
         String portalVersion = (portalReleaseVersions.get((String.valueOf(portalId))));
