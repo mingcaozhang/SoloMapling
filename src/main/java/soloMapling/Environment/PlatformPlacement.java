@@ -9,7 +9,10 @@ import soloMapling.ArtificialPlayer.BotMovementSystem.MovementCommands;
 import soloMapling.server.ExecutorServiceManager;
 
 import java.awt.*;
-import java.io.File;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -40,10 +43,13 @@ import static soloMapling.server.SoloMaplingUtilities.getMapleMapById;
 public class PlatformPlacement {
 
     private static final String BASE_PATH = "src/main/java/soloMapling/ArtificialPlayer/BotMovementSystem/movementDataPackets";
-    // Tolerance for Y-coordinate matching when determining if a character is on a platform;
-    // characters within this vertical distance of the platform are considered "on" it.
+    // Tolerance for Y-coordinate matching when determining if a character is on a
+    // platform;
+    // characters within this vertical distance of the platform are considered "on"
+    // it.
     private static final int Y_TOLERANCE = 10;
-    // Tolerance for X-coordinate proximity when checking if a character is near platform bounds
+    // Tolerance for X-coordinate proximity when checking if a character is near
+    // platform bounds
     // (buffer beyond the recorded min/max X values).
     private static final int X_TOLERANCE = 20;
 
@@ -107,8 +113,8 @@ public class PlatformPlacement {
         return new ArrayList<>(characterIds);
     }
 
-
-    public static List<Integer> spawnBotsOnMapOnPlatformInRadius(int numBots, int mapId, String platform_id, Point center, int radius) {
+    public static List<Integer> spawnBotsOnMapOnPlatformInRadius(int numBots, int mapId, String platform_id,
+            Point center, int radius) {
         Platform flatPlatform = PlatformParser.parsePlatform(mapId, platform_id);
         List<Point> occupied = Collections.synchronizedList(new ArrayList<>());
         ConcurrentLinkedQueue<Integer> characterIds = new ConcurrentLinkedQueue<>();
@@ -300,7 +306,8 @@ public class PlatformPlacement {
         return new ArrayList<>(characterIds);
     }
 
-    private static Point findUnoccupiedPointInRadius(Platform platform, List<Point> occupied, Point center, int radius) {
+    private static Point findUnoccupiedPointInRadius(Platform platform, List<Point> occupied, Point center,
+            int radius) {
         int maxAttempts = 100;
         for (int i = 0; i < maxAttempts; i++) {
             Point candidate = findUnoccupiedPoint(platform, occupied);
@@ -310,7 +317,6 @@ public class PlatformPlacement {
         }
         return null;
     }
-
 
     public static Character createBotWithRetry(Point spawn, int mapId, int maxRetries) {
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
@@ -359,12 +365,18 @@ public class PlatformPlacement {
         MovementCommands.pathFinderAware(fakechar, unoccupiedPt);
     }
 
-    // Dynamic-engine sibling of botMoveToPlatformAnyUnoccupiedSpot: same occupancy-aware target
-    // pick, but the walk runs on GCMovement, which lands on the exact pixel instead of a recorded
-    // path's fixed endpoints (the cause of merchant bots stacking on "spots"). Skips while a
-    // dynamic stroll is already in progress so FSM ticks can't thrash the target mid-walk.
-    // Note: first use puts the bot under dynamic control for good — it holds the shared movement
-    // lock, so recorded-path MovementCommands silently no-op for this bot from then on.
+    // Dynamic-engine sibling of botMoveToPlatformAnyUnoccupiedSpot: same
+    // occupancy-aware target
+    // pick, but the walk runs on GCMovement, which lands on the exact pixel instead
+    // of a recorded
+    // path's fixed endpoints (the cause of merchant bots stacking on "spots").
+    // Skips while a
+    // dynamic stroll is already in progress so FSM ticks can't thrash the target
+    // mid-walk.
+    // Note: first use puts the bot under dynamic control for good — it holds the
+    // shared movement
+    // lock, so recorded-path MovementCommands silently no-op for this bot from then
+    // on.
     public static void botMoveToPlatformAnyUnoccupiedSpotDynamic(Character fakechar, String platform) {
         if (fakechar == null || platform == null || GCMovement.isMoving(fakechar)) {
             return;
@@ -388,13 +400,14 @@ public class PlatformPlacement {
      * the expected Y at the character's X position.
      *
      * @param chr The character whose platform we want to find
-     * @return The platform identifier (e.g., "m1", "m2") or null if not on any known platform
+     * @return The platform identifier (e.g., "m1", "m2") or null if not on any
+     *         known platform
      */
     public static String getCurrentPlatform(Character chr) {
         Point currentPosition = chr.getPosition();
         int mapId = chr.getMapId();
         String platform = findPlatformAtPosition(mapId, currentPosition);
-        //debugprint("MapID: ", mapId, "Platform: ", platform);
+        // debugprint("MapID: ", mapId, "Platform: ", platform);
         return platform;
     }
 
@@ -436,7 +449,8 @@ public class PlatformPlacement {
 
     /**
      * Calculates how well a position matches a platform.
-     * Lower score = better match. Returns -1 if position is definitely not on the platform.
+     * Lower score = better match. Returns -1 if position is definitely not on the
+     * platform.
      *
      * @param platform The platform to check against
      * @param position The position to evaluate
@@ -461,7 +475,8 @@ public class PlatformPlacement {
         }
 
         // Score is based on how close we are to the expected Y
-        // Also factor in how well we're within the X bounds (prefer being solidly within bounds)
+        // Also factor in how well we're within the X bounds (prefer being solidly
+        // within bounds)
         int xDistanceFromCenter = Math.abs(x - (platform.getMinX() + platform.getMaxX()) / 2);
 
         // Combined score: Y accuracy is more important, X centering is secondary
@@ -469,29 +484,55 @@ public class PlatformPlacement {
     }
 
     /**
-     * Gets all available platform IDs for a given map by scanning the directory.
+     * Gets all available platform IDs for a given map by reading the pre-compiled
+     * manifest index.
+     * Works flawlessly with subdirectories (e.g., returns ["c1-2a",
+     * "smallMovement/leftleft20"]).
      *
-     * @param mapId The map ID
-     * @return List of platform IDs (e.g., ["m1", "m2", "m3"])
+     * @param mapId The map ID (e.g., 910000000)
+     * @return List of platform IDs
      */
     public static List<String> getAvailablePlatformIds(int mapId) {
         List<String> platformIds = new ArrayList<>();
-        File mapDir = new File(BASE_PATH + "/map" + mapId);
 
-        if (!mapDir.exists() || !mapDir.isDirectory()) {
-            return platformIds;
-        }
+        // Ensure BASE_PATH is relative to your resources folder
+        // For example:
+        // "soloMapling/ArtificialPlayer/BotMovementSystem/movementDataPackets"
+        String manifestPath = BASE_PATH + "/manifest.txt";
+        manifestPath = manifestPath.replace("\\", "/").replaceAll("//+", "/");
 
-        File[] files = mapDir.listFiles((dir, name) -> name.endsWith(".csv"));
+        String targetKey = String.valueOf(mapId) + ":";
 
-        if (files != null) {
-            for (File file : files) {
-                String name = file.getName();
-                // Remove .csv extension to get platform ID
-                platformIds.add(name.substring(0, name.length() - 4));
+        // Use the ClassLoader to load the manifest from target/classes or your JAR
+        try (InputStream inputStream = PlatformPlacement.class.getClassLoader().getResourceAsStream(manifestPath)) {
+            if (inputStream == null) {
+                System.err.println("Movement manifest file missing from classpath resources: " + manifestPath);
+                return platformIds;
             }
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    line = line.trim();
+
+                    // Track down the line matching the map ID
+                    if (line.startsWith(targetKey)) {
+                        String platformData = line.substring(targetKey.length()).trim();
+                        if (!platformData.isEmpty()) {
+                            String[] split = platformData.split(",");
+                            for (String id : split) {
+                                platformIds.add(id.trim());
+                            }
+                        }
+                        break; // Found our map target, break loop early
+                    }
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Failed to read platform manifest file index for map: " + mapId);
+            e.printStackTrace();
         }
-        //debugprint("MapID", mapId, "Platform ids: ", platformIds);
+
         return platformIds;
     }
 
@@ -510,9 +551,12 @@ public class PlatformPlacement {
     /**
      * Gets all characters standing on a specific platform.
      * <p>
-     * Cross-references all characters on the map against the platform's coordinate bounds.
-     * Since platform coordinates are guide points (not every possible position), this method
-     * uses interpolation and tolerance values to determine if a character is on the platform.
+     * Cross-references all characters on the map against the platform's coordinate
+     * bounds.
+     * Since platform coordinates are guide points (not every possible position),
+     * this method
+     * uses interpolation and tolerance values to determine if a character is on the
+     * platform.
      *
      * @param mapId      The map ID
      * @param platformId The platform identifier (e.g., "m1")
@@ -533,7 +577,7 @@ public class PlatformPlacement {
                 charsOnPlatform.add(chr);
             }
         }
-        //debugprint("CharsOnPlatform: ", charsOnPlatform, charsOnPlatform.size());
+        // debugprint("CharsOnPlatform: ", charsOnPlatform, charsOnPlatform.size());
         return charsOnPlatform;
     }
 
@@ -552,8 +596,10 @@ public class PlatformPlacement {
     /**
      * Checks if a position is on a specific platform.
      * <p>
-     * For FLAT platforms: checks if X is within bounds and Y matches baseY (within tolerance).
-     * For SLOPED platforms: checks if X is within bounds and Y matches the interpolated Y at that X.
+     * For FLAT platforms: checks if X is within bounds and Y matches baseY (within
+     * tolerance).
+     * For SLOPED platforms: checks if X is within bounds and Y matches the
+     * interpolated Y at that X.
      *
      * @param position The position to check
      * @param platform The platform to check against
