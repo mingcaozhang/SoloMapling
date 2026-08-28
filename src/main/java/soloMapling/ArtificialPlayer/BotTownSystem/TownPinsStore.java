@@ -3,9 +3,10 @@ package soloMapling.ArtificialPlayer.BotTownSystem;
 import java.awt.Point;
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,8 +21,7 @@ public final class TownPinsStore {
     private TownPinsStore() {
     }
 
-    private static final String PATH =
-            "src/main/java/soloMapling/ArtificialPlayer/BotTownSystem/TownPins.txt";
+    private static final String PATH = "soloMapling/ArtificialPlayer/BotTownSystem/TownPins.txt";
 
     // Append one pin. Writes a header the first time the file is created.
     public static synchronized void addPin(int mapId, int x, int y) {
@@ -41,32 +41,42 @@ public final class TownPinsStore {
         }
     }
 
-    // mapId -> its pinned points. Empty if the file doesn't exist yet.
+    // mapId -> its pinned points. Empty if the file doesn't exist yet inside
+    // resources.
     public static synchronized Map<Integer, List<Point>> load() {
         Map<Integer, List<Point>> out = new HashMap<>();
-        File f = new File(PATH);
-        if (!f.exists()) {
-            return out;
-        }
-        try (BufferedReader r = new BufferedReader(new FileReader(f))) {
-            String line;
-            while ((line = r.readLine()) != null) {
-                String s = line.trim();
-                if (s.isEmpty() || s.startsWith("#")) {
-                    continue;
-                }
-                int colon = s.indexOf(':');
-                int comma = s.indexOf(',');
-                if (colon < 0 || comma < 0 || comma < colon) {
-                    continue;
-                }
-                try {
-                    int mapId = Integer.parseInt(s.substring(0, colon).trim());
-                    int x = Integer.parseInt(s.substring(colon + 1, comma).trim());
-                    int y = Integer.parseInt(s.substring(comma + 1).trim());
-                    out.computeIfAbsent(mapId, k -> new ArrayList<>()).add(new Point(x, y));
-                } catch (NumberFormatException ignored) {
-                    // skip a malformed line rather than fail the whole load
+
+        // Ensure PATH is relative to your resources root (e.g.,
+        // "soloMapling/town_pins.txt")
+        String cleanPath = PATH.replace("\\", "/").replaceAll("//+", "/");
+
+        try (InputStream inputStream = TownPinsStore.class.getClassLoader().getResourceAsStream(cleanPath)) {
+            if (inputStream == null) {
+                // Replicates the original file.exists() check safely for classpath contexts
+                System.out.println("[TownPinsStore] pins resource file not found, returning empty configuration.");
+                return out;
+            }
+
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(inputStream))) {
+                String line;
+                while ((line = r.readLine()) != null) {
+                    String s = line.trim();
+                    if (s.isEmpty() || s.startsWith("#")) {
+                        continue;
+                    }
+                    int colon = s.indexOf(':');
+                    int comma = s.indexOf(',');
+                    if (colon < 0 || comma < 0 || comma < colon) {
+                        continue;
+                    }
+                    try {
+                        int mapId = Integer.parseInt(s.substring(0, colon).trim());
+                        int x = Integer.parseInt(s.substring(colon + 1, comma).trim());
+                        int y = Integer.parseInt(s.substring(comma + 1).trim());
+                        out.computeIfAbsent(mapId, k -> new ArrayList<>()).add(new Point(x, y));
+                    } catch (NumberFormatException ignored) {
+                        // skip a malformed line rather than fail the whole load
+                    }
                 }
             }
         } catch (IOException e) {

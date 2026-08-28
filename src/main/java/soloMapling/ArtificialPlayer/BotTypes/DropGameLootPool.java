@@ -2,7 +2,8 @@ package soloMapling.ArtificialPlayer.BotTypes;
 
 import com.esotericsoftware.yamlbeans.YamlReader;
 
-import java.io.FileReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -12,7 +13,7 @@ import static soloMapling.BotLogger.log;
 
 public class DropGameLootPool {
 
-    private static final String LOOT_POOL_PATH = "src/main/java/soloMapling/ArtificialPlayer/BotDialoguePack/DropGameLootPool.yaml";
+    private static final String LOOT_POOL_PATH = "soloMapling/ArtificialPlayer/BotDialoguePack/DropGameLootPool.yaml";
     private static final Random random = new Random();
     private static final int SPECIAL_CHANCE_PERCENT = 33;
 
@@ -34,19 +35,34 @@ public class DropGameLootPool {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static DropGameLootPool load(String tier) {
         DropGameLootPool pool = new DropGameLootPool();
-        try {
-            YamlReader reader = new YamlReader(new FileReader(LOOT_POOL_PATH));
-            Map<String, Object> root = (Map<String, Object>) reader.read();
-            Map<String, Object> tierNode = (Map<String, Object>) root.get(tier);
-            if (tierNode == null) {
-                log("DropGameLootPool: No tier found for: " + tier);
-                return pool;
+
+        // Ensure LOOT_POOL_PATH is a relative classpath string (e.g.,
+        // "soloMapling/drop_game_loot.yaml")
+        String cleanPath = LOOT_POOL_PATH.replace("\\", "/").replaceAll("//+", "/");
+
+        try (InputStream inputStream = DropGameLootPool.class.getClassLoader().getResourceAsStream(cleanPath)) {
+            if (inputStream == null) {
+                throw new java.io.FileNotFoundException("Resource not found in classpath: " + cleanPath);
             }
 
-            loadEntries(tierNode, "items", pool.entries, pool);
-            loadEntries(tierNode, "special_items", pool.specialEntries, pool);
+            try (YamlReader reader = new YamlReader(new InputStreamReader(inputStream))) {
+                Map<String, Object> root = (Map<String, Object>) reader.read();
+                if (root == null) {
+                    return pool;
+                }
+
+                Map<String, Object> tierNode = (Map<String, Object>) root.get(tier);
+                if (tierNode == null) {
+                    log("DropGameLootPool: No tier found for: " + tier);
+                    return pool;
+                }
+
+                loadEntries(tierNode, "items", pool.entries, pool);
+                loadEntries(tierNode, "special_items", pool.specialEntries, pool);
+            }
         } catch (Exception e) {
             log("DropGameLootPool: Failed to load tier: " + tier);
             e.printStackTrace();
@@ -55,9 +71,10 @@ public class DropGameLootPool {
     }
 
     private static void loadEntries(Map<String, Object> tierNode, String key,
-                                     List<LootEntry> targetList, DropGameLootPool pool) {
+            List<LootEntry> targetList, DropGameLootPool pool) {
         List<Map<String, Object>> items = (List<Map<String, Object>>) tierNode.get(key);
-        if (items == null) return;
+        if (items == null)
+            return;
 
         int weight = 0;
         for (Map<String, Object> entry : items) {
@@ -95,7 +112,8 @@ public class DropGameLootPool {
     }
 
     private LootEntry rollFrom(List<LootEntry> list, int total) {
-        if (list.isEmpty() || total == 0) return null;
+        if (list.isEmpty() || total == 0)
+            return null;
         int roll = random.nextInt(total);
         int cumulative = 0;
         for (LootEntry entry : list) {

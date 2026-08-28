@@ -4,14 +4,16 @@ import com.esotericsoftware.yamlbeans.YamlReader;
 import constants.inventory.EquipType;
 import soloMapling.itemPool.EquipMetadataCache;
 
-import java.io.FileReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Loads and serves the curated list of NX / cash cosmetic equips.
  * No level filter (NX has no reqLevel). Gender is resolved per item at load
- * time: explicit YAML override > body-slot ID-digit convention > unisex default.
+ * time: explicit YAML override > body-slot ID-digit convention > unisex
+ * default.
  *
  * Call {@link #load()} once at startup (BotDecorateNX does this lazily).
  * Use {@link #getRandom(String, int)} to pick a random item for a given
@@ -19,8 +21,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class NXItemPool {
 
-    private static final String YAML_PATH =
-            "src/main/java/soloMapling/ArtificialPlayer/BotDecoratorSystem/NXItemPool.yaml";
+    private static final String YAML_PATH = "soloMapling/ArtificialPlayer/BotDecoratorSystem/NXItemPool.yaml";
 
     public static final int GENDER_MALE = 0;
     public static final int GENDER_FEMALE = 1;
@@ -31,8 +32,7 @@ public class NXItemPool {
     // in the ID the same way, so they default to unisex unless the YAML says
     // otherwise.
     private static final Set<String> BODY_SLOT_CATEGORIES = Set.of(
-            "caps", "tops", "bottoms", "overalls", "shoes", "gloves", "capes"
-    );
+            "caps", "tops", "bottoms", "overalls", "shoes", "gloves", "capes");
 
     public static class PoolItem {
         final int id;
@@ -50,79 +50,92 @@ public class NXItemPool {
      * Weapons span many EquipTypes so they get their own array.
      */
     private static final Map<String, EquipType[]> CATEGORY_TO_EQUIP_TYPES = Map.ofEntries(
-            Map.entry("caps",      new EquipType[]{EquipType.CAP}),
-            Map.entry("tops",      new EquipType[]{EquipType.COAT}),
-            Map.entry("bottoms",   new EquipType[]{EquipType.PANTS}),
-            Map.entry("overalls",  new EquipType[]{EquipType.LONGCOAT}),
-            Map.entry("shoes",     new EquipType[]{EquipType.SHOES}),
-            Map.entry("gloves",    new EquipType[]{EquipType.GLOVES}),
-            Map.entry("capes",     new EquipType[]{EquipType.CAPE}),
-            Map.entry("earrings",  new EquipType[]{EquipType.EARRING}),
-            Map.entry("face",      new EquipType[]{EquipType.FACE}),
-            Map.entry("eye",       new EquipType[]{EquipType.ACCESSORY}),
-            Map.entry("rings",     new EquipType[]{EquipType.RING}),
-            Map.entry("weapons",   new EquipType[]{
+            Map.entry("caps", new EquipType[] { EquipType.CAP }),
+            Map.entry("tops", new EquipType[] { EquipType.COAT }),
+            Map.entry("bottoms", new EquipType[] { EquipType.PANTS }),
+            Map.entry("overalls", new EquipType[] { EquipType.LONGCOAT }),
+            Map.entry("shoes", new EquipType[] { EquipType.SHOES }),
+            Map.entry("gloves", new EquipType[] { EquipType.GLOVES }),
+            Map.entry("capes", new EquipType[] { EquipType.CAPE }),
+            Map.entry("earrings", new EquipType[] { EquipType.EARRING }),
+            Map.entry("face", new EquipType[] { EquipType.FACE }),
+            Map.entry("eye", new EquipType[] { EquipType.ACCESSORY }),
+            Map.entry("rings", new EquipType[] { EquipType.RING }),
+            Map.entry("weapons", new EquipType[] {
                     EquipType.SWORD, EquipType.AXE, EquipType.MACE, EquipType.DAGGER,
                     EquipType.WAND, EquipType.STAFF, EquipType.SWORD_2H, EquipType.AXE_2H,
                     EquipType.MACE_2H, EquipType.SPEAR, EquipType.POLEARM, EquipType.BOW,
                     EquipType.CROSSBOW, EquipType.CLAW, EquipType.KNUCKLER, EquipType.PISTOL
-            })
-    );
+            }));
 
     private static final Map<String, List<PoolItem>> pools = new HashMap<>();
     private static boolean loaded = false;
 
     @SuppressWarnings("unchecked")
     public static synchronized void load() {
-        if (loaded) return;
+        if (loaded)
+            return;
 
-        try {
-            YamlReader reader = new YamlReader(new FileReader(YAML_PATH));
-            Map<String, Object> root = (Map<String, Object>) reader.read();
-            if (root == null) root = Collections.emptyMap();
-
-            int itemCount = 0;
-            for (Map.Entry<String, Object> entry : root.entrySet()) {
-                String category = entry.getKey();
-                Object val = entry.getValue();
-                if (!(val instanceof List)) continue;
-
-                List<PoolItem> list = new ArrayList<>();
-                for (Object raw : (List<?>) val) {
-                    PoolItem item = parseEntry(raw, category);
-                    if (item != null) {
-                        list.add(item);
-                        itemCount++;
-                    }
-                }
-                pools.put(category, list);
+        // Ensure YAML_PATH is a relative classpath string (e.g.,
+        // "soloMapling/nx_items.yaml")
+        try (InputStream inputStream = NXItemPool.class.getClassLoader().getResourceAsStream(YAML_PATH)) {
+            if (inputStream == null) {
+                throw new IllegalArgumentException("Resource not found: " + YAML_PATH);
             }
 
-            // Auto-populate empty categories from EquipMetadataCache
-            int cacheCount = 0;
-            if (EquipMetadataCache.isInitialized()) {
-                EquipMetadataCache cache = EquipMetadataCache.get();
-                for (Map.Entry<String, EquipType[]> mapping : CATEGORY_TO_EQUIP_TYPES.entrySet()) {
-                    String category = mapping.getKey();
-                    List<PoolItem> existing = pools.get(category);
-                    if (existing != null && !existing.isEmpty()) continue;
+            try (YamlReader reader = new YamlReader(new InputStreamReader(inputStream))) {
+                Map<String, Object> root = (Map<String, Object>) reader.read();
+                if (root == null)
+                    root = Collections.emptyMap();
 
-                    List<PoolItem> cacheItems = loadCashItemsFromCache(cache, category, mapping.getValue());
-                    if (!cacheItems.isEmpty()) {
-                        pools.put(category, cacheItems);
-                        cacheCount += cacheItems.size();
-                        System.out.println("[NXItemPool]   Auto-populated '" + category
-                                + "' with " + cacheItems.size() + " cash items from cache");
+                int itemCount = 0;
+                for (Map.Entry<String, Object> entry : root.entrySet()) {
+                    String category = entry.getKey();
+                    Object val = entry.getValue();
+
+                    // Traditional type check compatible with older Java versions
+                    if (!(val instanceof List))
+                        continue;
+                    List<?> rawList = (List<?>) val;
+
+                    List<PoolItem> list = new ArrayList<>();
+                    for (Object raw : rawList) {
+                        PoolItem item = parseEntry(raw, category);
+                        if (item != null) {
+                            list.add(item);
+                            itemCount++;
+                        }
                     }
+                    pools.put(category, list);
                 }
-            } else {
-                System.out.println("[NXItemPool]   EquipMetadataCache not initialized — "
-                        + "empty categories will have no NX items");
-            }
 
-            loaded = true;
-            System.out.println("[NXItemPool] Loaded " + itemCount + " curated + "
-                    + cacheCount + " cache-auto items across " + pools.size() + " categories");
+                // Auto-populate empty categories from EquipMetadataCache
+                int cacheCount = 0;
+                if (EquipMetadataCache.isInitialized()) {
+                    EquipMetadataCache cache = EquipMetadataCache.get();
+                    for (Map.Entry<String, EquipType[]> mapping : CATEGORY_TO_EQUIP_TYPES.entrySet()) {
+                        String category = mapping.getKey();
+                        List<PoolItem> existing = pools.get(category);
+                        if (existing != null && !existing.isEmpty())
+                            continue;
+
+                        List<PoolItem> cacheItems = loadCashItemsFromCache(cache, category, mapping.getValue());
+                        if (!cacheItems.isEmpty()) {
+                            pools.put(category, cacheItems);
+                            cacheCount += cacheItems.size();
+                            System.out.println("[NXItemPool]   Auto-populated '" + category
+                                    + "' with " + cacheItems.size() + " cash items from cache");
+                        }
+                    }
+                } else {
+                    System.out.println("[NXItemPool]   EquipMetadataCache not initialized — "
+                            + "empty categories will have no NX items");
+                }
+
+                loaded = true;
+                System.out.println("[NXItemPool] Loaded " + itemCount + " curated + "
+                        + cacheCount + " cache-auto items across " + pools.size() + " categories");
+            }
         } catch (Exception e) {
             System.err.println("[NXItemPool] Failed to load YAML: " + e.getMessage());
             e.printStackTrace();
@@ -134,7 +147,7 @@ public class NXItemPool {
      * Pure in-memory — no WZ access.
      */
     private static List<PoolItem> loadCashItemsFromCache(EquipMetadataCache cache,
-                                                          String category, EquipType[] equipTypes) {
+            String category, EquipType[] equipTypes) {
         List<PoolItem> result = new ArrayList<>();
         for (EquipType eqType : equipTypes) {
             for (EquipMetadataCache.EquipEntry entry : cache.getCashByType(eqType)) {
@@ -146,7 +159,8 @@ public class NXItemPool {
 
     @SuppressWarnings("unchecked")
     private static PoolItem parseEntry(Object raw, String category) {
-        if (raw == null) return null;
+        if (raw == null)
+            return null;
         if (raw instanceof Number || raw instanceof String) {
             int id = toInt(raw);
             return new PoolItem(id, deriveGender(id, category, null));
@@ -161,7 +175,8 @@ public class NXItemPool {
     }
 
     private static int deriveGender(int itemId, String category, Integer override) {
-        if (override != null) return override;
+        if (override != null)
+            return override;
         if (BODY_SLOT_CATEGORIES.contains(category)) {
             return (itemId / 1000) % 10;
         }
@@ -169,7 +184,8 @@ public class NXItemPool {
     }
 
     private static Integer parseGender(Object raw) {
-        if (raw == null) return null;
+        if (raw == null)
+            return null;
         String s = raw.toString().toLowerCase();
         switch (s) {
             case "male":
@@ -192,9 +208,11 @@ public class NXItemPool {
      * category is empty, the pool isn't loaded, or no item is eligible.
      */
     public static Integer getRandom(String category, int botGender) {
-        if (!loaded) return null;
+        if (!loaded)
+            return null;
         List<PoolItem> list = pools.get(category);
-        if (list == null || list.isEmpty()) return null;
+        if (list == null || list.isEmpty())
+            return null;
 
         List<PoolItem> eligible = new ArrayList<>(list.size());
         for (PoolItem item : list) {
@@ -202,14 +220,17 @@ public class NXItemPool {
                 eligible.add(item);
             }
         }
-        if (eligible.isEmpty()) return null;
+        if (eligible.isEmpty())
+            return null;
 
         return eligible.get(ThreadLocalRandom.current().nextInt(eligible.size())).id;
     }
 
     private static int toInt(Object obj) {
-        if (obj instanceof Number) return ((Number) obj).intValue();
-        if (obj instanceof String) return Integer.parseInt((String) obj);
+        if (obj instanceof Number)
+            return ((Number) obj).intValue();
+        if (obj instanceof String)
+            return Integer.parseInt((String) obj);
         return 0;
     }
 

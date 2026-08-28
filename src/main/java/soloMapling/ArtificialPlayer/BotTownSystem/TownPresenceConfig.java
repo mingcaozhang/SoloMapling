@@ -3,7 +3,8 @@ package soloMapling.ArtificialPlayer.BotTownSystem;
 import com.esotericsoftware.yamlbeans.YamlReader;
 
 import java.awt.Point;
-import java.io.FileReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -21,19 +22,23 @@ public final class TownPresenceConfig {
     private TownPresenceConfig() {
     }
 
-    private static final String YAML_PATH =
-            "src/main/java/soloMapling/ArtificialPlayer/BotTownSystem/TownPresence.yaml";
+    private static final String YAML_PATH = "soloMapling/ArtificialPlayer/BotTownSystem/TownPresence.yaml";
 
-    // One map within a town's family: how many ambient bots stand there, plus its curation overrides
-    // (ban/boost zones + pins, hand-authored in the YAML and merged with any marked pins from the sidecar).
+    // One map within a town's family: how many ambient bots stand there, plus its
+    // curation overrides
+    // (ban/boost zones + pins, hand-authored in the YAML and merged with any marked
+    // pins from the sidecar).
     public record MapShare(int mapId, int count, TownOverrides overrides) {
     }
 
-    // One town's ambient plan. `wanderers` is the town-level count of roaming TownWandererBots (they drift
-    // the town's map family), separate from the per-map stationed-SocialBot counts in `maps`.
+    // One town's ambient plan. `wanderers` is the town-level count of roaming
+    // TownWandererBots (they drift
+    // the town's map family), separate from the per-map stationed-SocialBot counts
+    // in `maps`.
     public record TownEntry(String name, int levelLo, int levelHi, int wanderers, List<MapShare> maps,
-                            String dialogueOverride) {
-        // The town's main map (first listed) - where roaming wanderers are seeded before they fan out.
+            String dialogueOverride) {
+        // The town's main map (first listed) - where roaming wanderers are seeded
+        // before they fan out.
         public int mainMapId() {
             return maps.isEmpty() ? -1 : maps.get(0).mapId();
         }
@@ -41,7 +46,8 @@ public final class TownPresenceConfig {
 
     private static volatile List<TownEntry> cached;
 
-    // Parsed town entries (cached after first load). Returns an empty list on any parse/IO failure so a
+    // Parsed town entries (cached after first load). Returns an empty list on any
+    // parse/IO failure so a
     // bad edit degrades to "no town presence" rather than crashing world startup.
     public static List<TownEntry> towns() {
         List<TownEntry> local = cached;
@@ -52,15 +58,19 @@ public final class TownPresenceConfig {
         return local;
     }
 
-    // Force a re-read from disk (used by the live-tuning !env command so edits apply without a restart).
+    // Force a re-read from disk (used by the live-tuning !env command so edits
+    // apply without a restart).
     public static List<TownEntry> reload() {
         cached = load();
         return cached;
     }
 
-    // Every town map id in the ambient plan (main town map plus any interior sub-maps), across all towns.
-    // The town-wide ambient-social managers (ConversationManager / SocialHotPotatoManager) union this with
-    // their Henesys map ids to build the scope they animate; they rebuild on !env townpresence reload.
+    // Every town map id in the ambient plan (main town map plus any interior
+    // sub-maps), across all towns.
+    // The town-wide ambient-social managers (ConversationManager /
+    // SocialHotPotatoManager) union this with
+    // their Henesys map ids to build the scope they animate; they rebuild on !env
+    // townpresence reload.
     public static Set<Integer> allTownMapIds() {
         Set<Integer> ids = new LinkedHashSet<>();
         for (TownEntry t : towns()) {
@@ -74,43 +84,59 @@ public final class TownPresenceConfig {
     @SuppressWarnings("unchecked")
     private static List<TownEntry> load() {
         List<TownEntry> out = new ArrayList<>();
-        try {
-            YamlReader reader = new YamlReader(new FileReader(YAML_PATH));
-            Map<String, Object> root = (Map<String, Object>) reader.read();
-            if (root == null) {
-                return out;
+
+        // Ensure YAML_PATH is a relative classpath string (e.g.,
+        // "soloMapling/town_presence.yaml")
+        try (InputStream inputStream = TownPresenceConfig.class.getClassLoader().getResourceAsStream(YAML_PATH)) {
+            if (inputStream == null) {
+                throw new IllegalArgumentException("Resource not found: " + YAML_PATH);
             }
-            Object townsNode = root.get("towns");
-            if (!(townsNode instanceof List<?> townList)) {
-                return out;
-            }
-            Map<Integer, List<Point>> sidecarPins = TownPinsStore.load(); // read the marked-pins file once
-            for (Object t : townList) {
-                if (!(t instanceof Map<?, ?> town)) {
-                    continue;
+
+            try (YamlReader reader = new YamlReader(new InputStreamReader(inputStream))) {
+                Map<String, Object> root = (Map<String, Object>) reader.read();
+                if (root == null) {
+                    return out;
                 }
-                String name = str(town.get("name"), "town");
-                int lo = toInt(town.get("level_lo"), 10);
-                int hi = toInt(town.get("level_hi"), lo);
-                int wanderers = toInt(town.get("wanderers"), 0);
-                String dialogue = str(town.get("dialogue"), null);
-                List<MapShare> shares = new ArrayList<>();
-                Object mapsNode = town.get("maps");
-                if (mapsNode instanceof List<?> mapList) {
-                    for (Object m : mapList) {
-                        if (!(m instanceof Map<?, ?> mm)) {
-                            continue;
-                        }
-                        int mapId = toInt(mm.get("map"), -1);
-                        int count = toInt(mm.get("count"), 0);
-                        if (mapId > 0 && count > 0) {
-                            shares.add(new MapShare(mapId, count,
-                                    parseOverrides(mm, sidecarPins.getOrDefault(mapId, List.of()))));
+                Object townsNode = root.get("towns");
+
+                // FIX: Separated modern pattern matching for older Java support
+                if (!(townsNode instanceof List<?>)) {
+                    return out;
+                }
+                List<?> townList = (List<?>) townsNode;
+
+                Map<Integer, List<Point>> sidecarPins = TownPinsStore.load(); // read the marked-pins file once
+                for (Object t : townList) {
+                    if (!(t instanceof Map<?, ?>)) {
+                        continue;
+                    }
+                    Map<?, ?> town = (Map<?, ?>) t;
+
+                    String name = str(town.get("name"), "town");
+                    int lo = toInt(town.get("level_lo"), 10);
+                    int hi = toInt(town.get("level_hi"), lo);
+                    int wanderers = toInt(town.get("wanderers"), 0);
+                    String dialogue = str(town.get("dialogue"), null);
+                    List<MapShare> shares = new ArrayList<>();
+                    Object mapsNode = town.get("maps");
+                    if (mapsNode instanceof List<?> mapList) {
+                        for (Object m : mapList) {
+                            if (!(m instanceof Map<?, ?>)) {
+                                continue;
+                            }
+                            Map<?, ?> mm = (Map<?, ?>) m;
+
+                            int mapId = toInt(mm.get("map"), -1);
+                            int count = toInt(mm.get("count"), 0);
+                            if (mapId > 0 && count > 0) {
+                                shares.add(new MapShare(mapId, count,
+                                        parseOverrides(mm, sidecarPins.getOrDefault(mapId, List.of()))));
+                            }
                         }
                     }
-                }
-                if (!shares.isEmpty()) {
-                    out.add(new TownEntry(name, lo, hi, wanderers, shares, dialogue));
+                    if (!shares.isEmpty()) {
+                        out.add(new TownEntry(name, lo, hi, wanderers, shares, dialogue));
+                    }
                 }
             }
         } catch (Exception e) {
@@ -120,8 +146,10 @@ public final class TownPresenceConfig {
         return out;
     }
 
-    // The curation overrides for a map, whether or not the map is listed in a town (so ad-hoc !env spawns
-    // on any map still honor marked pins). Merges YAML ban/boost/pins with the sidecar's marked pins.
+    // The curation overrides for a map, whether or not the map is listed in a town
+    // (so ad-hoc !env spawns
+    // on any map still honor marked pins). Merges YAML ban/boost/pins with the
+    // sidecar's marked pins.
     public static TownOverrides overridesFor(int mapId) {
         for (TownEntry t : towns()) {
             for (MapShare m : t.maps()) {
@@ -134,8 +162,10 @@ public final class TownPresenceConfig {
         return sidecar.isEmpty() ? TownOverrides.EMPTY : new TownOverrides(List.of(), List.of(), sidecar);
     }
 
-    // Build a map's overrides from its YAML block (ban/boost rects + pins) merged with the already-loaded
-    // sidecar pins for that map. Y bounds on a zone are optional (full-height band when absent).
+    // Build a map's overrides from its YAML block (ban/boost rects + pins) merged
+    // with the already-loaded
+    // sidecar pins for that map. Y bounds on a zone are optional (full-height band
+    // when absent).
     private static TownOverrides parseOverrides(Map<?, ?> mm, List<Point> sidecarPins) {
         List<TownOverrides.Zone> ban = parseZones(mm.get("ban"), 1.0);
         List<TownOverrides.Zone> boost = parseZones(mm.get("boost"), 2.0);

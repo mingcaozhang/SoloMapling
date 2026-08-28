@@ -15,9 +15,10 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -31,7 +32,7 @@ import static soloMapling.DebugUtilities.debugprint;
 
 public class InPacketReader {
 
-    private static final String movementDataPacketsPath = "src/main/java/soloMapling/ArtificialPlayer/BotMovementSystem/movementDataPackets/";
+    private static final String movementDataPacketsPath = "soloMapling/ArtificialPlayer/BotMovementSystem/movementDataPackets/";
 
     public static boolean boolRecordMovementData = false;
     public static String movementDataRecordingName = "default_movement_recording";
@@ -59,26 +60,39 @@ public class InPacketReader {
         return packets;
     }
 
-    public static List<MovementPacketRaw> readRawPacketsFromFile(String csvFileName) {
+    public static List<MovementPacketRaw> readRawPacketsFromFile(String resourcePath) {
         List<MovementPacketRaw> packetList = new LinkedList<>();
 
-        try (BufferedReader reader = new BufferedReader(new FileReader(csvFileName))) {
-            LineReader lineReader = new LineReader(reader);
-            String line;
+        // Ensure resourcePath is relative to your resources root (e.g.,
+        // "soloMapling/movements/packets.csv")
+        // Replace backslashes with forward slashes for classpath uniformity across OS
+        // environments
+        String cleanPath = resourcePath.replace("\\", "/").replaceAll("//+", "/");
 
-            while ((line = lineReader.readLine()) != null) {
-                // Read A Single Raw Packet
-                long timestamp = parseTimestamp(line);
+        try (InputStream inputStream = InPacketReader.class.getClassLoader().getResourceAsStream(cleanPath)) {
+            if (inputStream == null) {
+                throw new java.io.FileNotFoundException("Resource not found in classpath: " + cleanPath);
+            }
 
-                line = lineReader.readLine();
-                if (line == null) break;
-                int numCommands = parseNumCommands(line);
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                LineReader lineReader = new LineReader(reader);
+                String line;
 
-                List<SingleMoveCommand> packets = readMovementPackets(lineReader, numCommands);
-                packetList.add(new MovementPacketRaw(timestamp, numCommands, packets));
+                while ((line = lineReader.readLine()) != null) {
+                    // Read A Single Raw Packet
+                    long timestamp = parseTimestamp(line);
+
+                    line = lineReader.readLine();
+                    if (line == null)
+                        break;
+                    int numCommands = parseNumCommands(line);
+
+                    List<SingleMoveCommand> packets = readMovementPackets(lineReader, numCommands);
+                    packetList.add(new MovementPacketRaw(timestamp, numCommands, packets));
+                }
             }
         } catch (IOException e) {
-            throw new RuntimeException("Error reading packets from file: " + csvFileName, e);
+            throw new RuntimeException("Error reading packets from resource: " + cleanPath, e);
         }
 
         return packetList;
@@ -100,12 +114,14 @@ public class InPacketReader {
         }
     }
 
-    private static List<SingleMoveCommand> readMovementPackets(LineReader lineReader, int numCommands) throws IOException {
+    private static List<SingleMoveCommand> readMovementPackets(LineReader lineReader, int numCommands)
+            throws IOException {
         List<SingleMoveCommand> packets = new ArrayList<>();
 
         for (int i = 0; i < numCommands; i++) {
             String line = lineReader.readLine();
-            if (line == null) break;
+            if (line == null)
+                break;
             if (!line.contains(",")) {
                 lineReader.goBack(line);
                 break; // sometimes numCommands might be too large due to incomplete parser
@@ -248,8 +264,7 @@ public class InPacketReader {
                 Short.toString(record.getYwobble()),
                 Short.toString(record.getFh()),
                 Byte.toString(record.getNewstate()),
-                Short.toString(record.getDuration())
-        );
+                Short.toString(record.getDuration()));
         debugprint(rawMoveData);
         return rawMoveData;
     }

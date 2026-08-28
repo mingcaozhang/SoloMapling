@@ -2,7 +2,8 @@ package soloMapling.ArtificialPlayer.BotChatterSystem;
 
 import com.esotericsoftware.yamlbeans.YamlReader;
 
-import java.io.FileReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -18,13 +19,13 @@ public final class TownChatterLines {
     private TownChatterLines() {
     }
 
-    private static final String YAML_PATH =
-            "src/main/java/soloMapling/ArtificialPlayer/BotDialoguePack/TownChatterDialogue.yaml";
+    private static final String YAML_PATH = "soloMapling/ArtificialPlayer/BotDialoguePack/TownChatterDialogue.yaml";
 
     private static volatile List<List<String>> cached;
     private static final Random RANDOM = new Random();
 
-    // Parsed exchanges (cached after first load). Empty list on any parse/IO failure.
+    // Parsed exchanges (cached after first load). Empty list on any parse/IO
+    // failure.
     public static List<List<String>> exchanges() {
         List<List<String>> local = cached;
         if (local == null) {
@@ -34,7 +35,8 @@ public final class TownChatterLines {
         return local;
     }
 
-    // Force a re-read from disk (used by the live-tuning !env chatter command so edits apply without a restart).
+    // Force a re-read from disk (used by the live-tuning !env chatter command so
+    // edits apply without a restart).
     public static List<List<String>> reload() {
         cached = load();
         return cached;
@@ -52,31 +54,46 @@ public final class TownChatterLines {
     @SuppressWarnings("unchecked")
     private static List<List<String>> load() {
         List<List<String>> out = new ArrayList<>();
-        try {
-            YamlReader reader = new YamlReader(new FileReader(YAML_PATH));
-            Map<String, Object> root = (Map<String, Object>) reader.read();
-            if (root == null) {
-                return out;
+
+        // Ensure YAML_PATH is a relative classpath string (e.g.,
+        // "soloMapling/town_chatter.yaml")
+        try (InputStream inputStream = TownChatterLines.class.getClassLoader().getResourceAsStream(YAML_PATH)) {
+            if (inputStream == null) {
+                throw new IllegalArgumentException("Resource not found: " + YAML_PATH);
             }
-            Object node = root.get("exchanges");
-            if (!(node instanceof List<?> list)) {
-                return out;
-            }
-            for (Object ex : list) {
-                if (!(ex instanceof List<?> turns)) {
-                    continue;
+
+            try (YamlReader reader = new YamlReader(new InputStreamReader(inputStream))) {
+                Map<String, Object> root = (Map<String, Object>) reader.read();
+                if (root == null) {
+                    return out;
                 }
-                List<String> lines = new ArrayList<>();
-                for (Object t : turns) {
-                    if (t != null) {
-                        String s = t.toString().trim();
-                        if (!s.isEmpty()) {
-                            lines.add(s);
+                Object node = root.get("exchanges");
+
+                // FIX: Separated the instanceof type check and explicit cast for older Java
+                // versions
+                if (!(node instanceof List<?>)) {
+                    return out;
+                }
+                List<?> list = (List<?>) node;
+
+                for (Object ex : list) {
+                    if (!(ex instanceof List<?>)) {
+                        continue;
+                    }
+                    List<?> turns = (List<?>) ex;
+
+                    List<String> lines = new ArrayList<>();
+                    for (Object t : turns) {
+                        if (t != null) {
+                            String s = t.toString().trim();
+                            if (!s.isEmpty()) {
+                                lines.add(s);
+                            }
                         }
                     }
-                }
-                if (lines.size() >= 2) {
-                    out.add(lines);
+                    if (lines.size() >= 2) {
+                        out.add(lines);
+                    }
                 }
             }
         } catch (Exception e) {
