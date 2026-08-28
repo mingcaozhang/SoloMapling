@@ -1,6 +1,7 @@
 package soloMapling.itemPool;
 
-import java.io.FileReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.*;
 
 import com.esotericsoftware.yamlbeans.YamlReader;
@@ -26,6 +27,7 @@ public class ItemDatabase {
         return instance;
     }
 
+    @SuppressWarnings("unchecked")
     public static void loadItemDatabase() throws Exception {
         ItemDatabase db = ItemDatabase.getInstance();
 
@@ -35,16 +37,30 @@ public class ItemDatabase {
                 "useables.yaml"); // Add more options as needed
 
         for (String itemPool : itemPools) {
-            String yamlFile = "src/main/java/soloMapling/itemPool/itemConfig/" + itemPool;
-            YamlReader reader = new YamlReader(new FileReader(yamlFile));
-            Map<String, List<ItemNode>> thiefitems = (Map<String, List<ItemNode>>) reader.read();
+            // Updated path relative to the src/main/resources root
+            String resourcePath = "soloMapling/itemPool/itemConfig/" + itemPool;
 
-            for (Map.Entry<String, List<ItemNode>> entry : thiefitems.entrySet()) {
-                String itemType = entry.getKey();
-                List<ItemNode> itemList = thiefitems.get(itemType);
+            // Grab the stream using the ClassLoader
+            try (InputStream inputStream = ItemDatabase.class.getClassLoader().getResourceAsStream(resourcePath)) {
+                if (inputStream == null) {
+                    throw new java.io.FileNotFoundException("Resource not found in classpath: " + resourcePath);
+                }
 
-                for (Object item : itemList) {
-                    db.processItem((Map<String, Object>) item);
+                try (YamlReader reader = new YamlReader(new InputStreamReader(inputStream))) {
+                    Map<String, List<ItemNode>> itemsMap = (Map<String, List<ItemNode>>) reader.read();
+
+                    if (itemsMap == null)
+                        continue;
+
+                    for (Map.Entry<String, List<ItemNode>> entry : itemsMap.entrySet()) {
+                        List<ItemNode> itemList = entry.getValue(); // Safe retrieval directly from loop entry
+                        if (itemList == null)
+                            continue;
+
+                        for (Object item : itemList) {
+                            db.processItem((Map<String, Object>) item);
+                        }
+                    }
                 }
             }
         }
@@ -146,7 +162,7 @@ public class ItemDatabase {
 
     public boolean checkIfItemExistsInCurrentVersion(int itemId) {
         ItemNode item = getItemData(itemId);
-        if(item == null) {
+        if (item == null) {
             return false;
         }
 
@@ -159,7 +175,8 @@ public class ItemDatabase {
                     earliestVersion = intKey;
                 }
             }
-            // Return true if the current version is >= the earliest version, false otherwise
+            // Return true if the current version is >= the earliest version, false
+            // otherwise
             boolean isInVersion = MapleVersionManager.getItemPoolVersion() >= earliestVersion;
             return isInVersion;
         }
@@ -170,7 +187,6 @@ public class ItemDatabase {
 
 // Usage example:
 class Example {
-
 
     public static void test3() throws Exception {
         int curr = 1332020;
@@ -186,49 +202,50 @@ class Example {
         System.out.println(db.checkIfItemExistsInCurrentVersion(2040407));
     }
 
-//    public static void test() {
-//        ItemDatabase db = new ItemDatabase();
-//
-//        // Create and process test YAML-like data structure
-//        Map<String, List<Map<String, Object>>> testData = new HashMap<>();
-//
-//        Map<String, Object> scarabData = new HashMap<>();
-//        scarabData.put("item", "Lv 70 Scarab");
-//        scarabData.put("variant_id", Arrays.asList(123, 1234, 12435));
-//
-//        Map<String, String> tiers = new HashMap<>();
-//        tiers.put("1", "S");
-//        tiers.put("19", "A");
-//        scarabData.put("tier", tiers);
-//
-//        Map<String, Integer> prices = new HashMap<>();
-//        prices.put("1", 4000000);
-//        prices.put("19", 3000000);
-//        scarabData.put("price", prices);
-//
-//        List<Map<String, Object>> weaponsList = new ArrayList<>();
-//        weaponsList.add(scarabData);
-//        testData.put("Weapon", weaponsList);
-//
-//        // Process the test data
-//        db.processYamlData(testData);
-//
-//        // Now we can test the lookups
-//        db.getItemTier(123, 1).ifPresent(tier ->
-//                System.out.println("Tier at version 1: " + tier));  // Should print S
-//        db.getItemTier(123, 20).ifPresent(tier ->
-//                System.out.println("Tier at version 20: " + tier)); // Should print A
-//
-//        // Test price lookups
-//        db.getItemPrice(123, 1).ifPresent(price ->
-//                System.out.println("Price at version 1: " + price));  // Should print 4000000
-//        db.getItemPrice(123, 20).ifPresent(price ->
-//                System.out.println("Price at version 20: " + price)); // Should print 3000000
-//
-//        // Test variant ID lookup
-//        db.getItemData(12435).ifPresent(item ->
-//                System.out.println("Found item by variant: " + item.getItem())); // Should print Lv 70 Scarab
-//    }
+    // public static void test() {
+    // ItemDatabase db = new ItemDatabase();
+    //
+    // // Create and process test YAML-like data structure
+    // Map<String, List<Map<String, Object>>> testData = new HashMap<>();
+    //
+    // Map<String, Object> scarabData = new HashMap<>();
+    // scarabData.put("item", "Lv 70 Scarab");
+    // scarabData.put("variant_id", Arrays.asList(123, 1234, 12435));
+    //
+    // Map<String, String> tiers = new HashMap<>();
+    // tiers.put("1", "S");
+    // tiers.put("19", "A");
+    // scarabData.put("tier", tiers);
+    //
+    // Map<String, Integer> prices = new HashMap<>();
+    // prices.put("1", 4000000);
+    // prices.put("19", 3000000);
+    // scarabData.put("price", prices);
+    //
+    // List<Map<String, Object>> weaponsList = new ArrayList<>();
+    // weaponsList.add(scarabData);
+    // testData.put("Weapon", weaponsList);
+    //
+    // // Process the test data
+    // db.processYamlData(testData);
+    //
+    // // Now we can test the lookups
+    // db.getItemTier(123, 1).ifPresent(tier ->
+    // System.out.println("Tier at version 1: " + tier)); // Should print S
+    // db.getItemTier(123, 20).ifPresent(tier ->
+    // System.out.println("Tier at version 20: " + tier)); // Should print A
+    //
+    // // Test price lookups
+    // db.getItemPrice(123, 1).ifPresent(price ->
+    // System.out.println("Price at version 1: " + price)); // Should print 4000000
+    // db.getItemPrice(123, 20).ifPresent(price ->
+    // System.out.println("Price at version 20: " + price)); // Should print 3000000
+    //
+    // // Test variant ID lookup
+    // db.getItemData(12435).ifPresent(item ->
+    // System.out.println("Found item by variant: " + item.getItem())); // Should
+    // print Lv 70 Scarab
+    // }
 
     public static void main(String[] args) throws Exception {
         loadItemDatabase();
