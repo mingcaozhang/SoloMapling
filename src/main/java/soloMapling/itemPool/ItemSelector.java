@@ -3,7 +3,8 @@ package soloMapling.itemPool;
 import com.esotericsoftware.yamlbeans.YamlReader;
 import soloMapling.server.MapleVersionManager;
 
-import java.io.FileReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -12,12 +13,27 @@ import static soloMapling.server.SoloMaplingUtilities.pickRandomItem;
 public class ItemSelector {
     private Map<String, List<ItemNode>> items;
 
-    public ItemSelector(String yamlFile) throws Exception {
-        YamlReader reader = new YamlReader(new FileReader(yamlFile));
-        items = (Map<String, List<ItemNode>>) reader.read();
+    @SuppressWarnings("unchecked")
+    public ItemSelector(String resourcePath) throws Exception {
+        // Load the file as a stream from the root classpath resources
+        InputStream inputStream = ItemSelector.class.getClassLoader().getResourceAsStream(resourcePath);
+
+        if (inputStream == null) {
+            throw new java.io.FileNotFoundException("Resource file not found in classpath: " + resourcePath);
+        }
+
+        // Try-with-resources handles closing the streams safely after parsing
+        try (InputStream stream = inputStream;
+                InputStreamReader reader = new InputStreamReader(stream)) {
+
+            try (YamlReader yamlReader = new YamlReader(reader)) {
+                this.items = (Map<String, List<ItemNode>>) yamlReader.read();
+            }
+        }
     }
 
     // Convert a map to an ItemNode instance
+    @SuppressWarnings("unchecked")
     public static ItemNode mapToItemNode(Map<String, Object> itemMap) {
         ItemNode itemNode = new ItemNode(
                 (String) itemMap.get("item"),
@@ -28,6 +44,7 @@ public class ItemSelector {
     }
 
     // Convert a map to an ScrollNode instance
+    @SuppressWarnings("unchecked")
     public static ScrollNode mapToScrollNode(Map<String, Object> itemMap) {
         ScrollNode scrollNode = new ScrollNode(
                 (String) itemMap.get("item"),
@@ -35,12 +52,12 @@ public class ItemSelector {
                 (Map<Integer, String>) itemMap.get("tier"),
                 (Map<Integer, Integer>) itemMap.get("price"),
                 Integer.parseInt((String) itemMap.get("success_rate")),
-                Integer.parseInt((String) itemMap.get("stat_bonus"))
-        );
+                Integer.parseInt((String) itemMap.get("stat_bonus")));
         return scrollNode;
     }
 
     // Method to get random item based on itemType, tier, and version
+    @SuppressWarnings("unchecked")
     public ItemNode getRandomItem(String itemType, String tier, int version) {
         List<ItemNode> filteredItems = new ArrayList<>();
         List<ItemNode> itemList = items.get(itemType);
@@ -54,11 +71,6 @@ public class ItemSelector {
         for (Object itemMap : itemList) {
             ItemNode itemNode = mapToItemNode((Map<String, Object>) itemMap);
             itemNodes.add(itemNode);
-        }
-
-        if (itemNodes == null) {
-            System.out.println("No items found for item type: " + itemType);
-            return null;
         }
 
         // todo make method
@@ -119,7 +131,7 @@ public class ItemSelector {
 
     public static Integer pickRandomVariantId(List<Integer> variantIds) {
         if (variantIds == null || variantIds.isEmpty()) {
-            return null;  // Return null if the list is empty or null
+            return null; // Return null if the list is empty or null
         }
 
         Random random = new Random();
@@ -136,7 +148,7 @@ public class ItemSelector {
         for (Map.Entry<Integer, Integer> entry : sortedMap.entrySet()) {
             int currentVersion = toInteger(entry.getKey());
             if (version < currentVersion) {
-                break;  // Exit loop if the input version is lower than the current range start
+                break; // Exit loop if the input version is lower than the current range start
             }
             result = toInteger(entry.getValue());
         }
@@ -162,7 +174,7 @@ public class ItemSelector {
     public static ItemNode getRandomItemFull(String itemPool, String itemType, String tier) {
         try {
             int version = MapleVersionManager.getItemPoolVersion();
-            ItemSelector itemSelector = new ItemSelector("src/main/java/soloMapling/itemPool/itemConfig/" + itemPool);
+            ItemSelector itemSelector = new ItemSelector("soloMapling/itemPool/itemConfig/" + itemPool);
             ItemNode randomItem = itemSelector.getRandomItem(itemType, tier, version);
             if (randomItem != null) {
                 return randomItem;
