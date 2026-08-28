@@ -8,8 +8,9 @@ import server.maps.PlayerShopItem;
 import soloMapling.itemPool.ScrolledItemComparator;
 
 import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -19,26 +20,26 @@ import java.util.Random;
 
 public class FMShopDescGen {
 
-    static String filePath_FMNameDesc = "src/main/java/soloMapling/FreeMarket/FMNameDesc/";
+    static String resourcePath_FMNameDesc = "soloMapling/FreeMarket/FMNameDesc/";
     static List<String> topFMClans = new ArrayList<>();
 
-    protected static final Map<String, String> typeToFilePath;
+    protected static final Map<String, String> typeToResourcePath;
 
     static {
-        typeToFilePath = new HashMap<>();
-        typeToFilePath.put("ign", filePath_FMNameDesc + "randomRealMaplestoryIGNs.txt");
-        typeToFilePath.put("thief", filePath_FMNameDesc + "thiefDesc.txt");
-        typeToFilePath.put("warrior", filePath_FMNameDesc + "warriorDesc.txt");
-        typeToFilePath.put("mage", filePath_FMNameDesc + "mageDesc.txt");
-        typeToFilePath.put("bowman", filePath_FMNameDesc + "bowmanDesc.txt");
-        typeToFilePath.put("chair", filePath_FMNameDesc + "chairDesc.txt");
-        typeToFilePath.put("scrolls", filePath_FMNameDesc + "scrollsDesc.txt");
-        typeToFilePath.put("useable", filePath_FMNameDesc + "useableDesc.txt");
-        typeToFilePath.put("etc", filePath_FMNameDesc + "etcDesc.txt");
-        typeToFilePath.put("common", filePath_FMNameDesc + "commonDesc.txt");
-        typeToFilePath.put("fmclan", filePath_FMNameDesc + "FMClans.txt");
-        typeToFilePath.put("shortword", filePath_FMNameDesc + "shortWordDesc.txt");
-        typeToFilePath.put("emojis", filePath_FMNameDesc + "emojiFaces.txt");
+        typeToResourcePath = new HashMap<>();
+        typeToResourcePath.put("ign", resourcePath_FMNameDesc + "randomRealMaplestoryIGNs.txt");
+        typeToResourcePath.put("thief", resourcePath_FMNameDesc + "thiefDesc.txt");
+        typeToResourcePath.put("warrior", resourcePath_FMNameDesc + "warriorDesc.txt");
+        typeToResourcePath.put("mage", resourcePath_FMNameDesc + "mageDesc.txt");
+        typeToResourcePath.put("bowman", resourcePath_FMNameDesc + "bowmanDesc.txt");
+        typeToResourcePath.put("chair", resourcePath_FMNameDesc + "chairDesc.txt");
+        typeToResourcePath.put("scrolls", resourcePath_FMNameDesc + "scrollsDesc.txt");
+        typeToResourcePath.put("useable", resourcePath_FMNameDesc + "useableDesc.txt");
+        typeToResourcePath.put("etc", resourcePath_FMNameDesc + "etcDesc.txt");
+        typeToResourcePath.put("common", resourcePath_FMNameDesc + "commonDesc.txt");
+        typeToResourcePath.put("fmclan", resourcePath_FMNameDesc + "FMClans.txt");
+        typeToResourcePath.put("shortword", resourcePath_FMNameDesc + "shortWordDesc.txt");
+        typeToResourcePath.put("emojis", resourcePath_FMNameDesc + "emojiFaces.txt");
     }
 
     protected static final Map<String, String> ITEM_ACRONYM_MAP = Map.ofEntries(
@@ -53,20 +54,20 @@ public class FMShopDescGen {
             // Consumables
             Map.entry("Onyx Apple", "Apples")
 
-            // Armor
+    // Armor
     );
 
     protected static String modifyShopTypeSeperatorText(String currentStr) {
-//        trimTertiaryShopDescription(merchant);
-//        String currentDesc = merchant.getDescription();
+        // trimTertiaryShopDescription(merchant);
+        // String currentDesc = merchant.getDescription();
         String replaceString = replaceSeperatorText(currentStr);
         return replaceString;
     }
 
     protected static String replaceSeperatorText(String str) {
-        //        Equips&Stuff
-//        White Scrolls
-//        Apples&Scrolls
+        // Equips&Stuff
+        // White Scrolls
+        // Apples&Scrolls
         boolean replaceText = Math.random() < 0.33;
         if (!replaceText) {
             return str;
@@ -81,9 +82,10 @@ public class FMShopDescGen {
     }
 
     protected static String getRandomQuote() {
-//        - meme/quote
-//                - video game quotes / reference ("Trinkets, Odds and ends, that sort of thing" - Skyrim)
-//                - anime quotes/reference ("Nah I'd Win")
+        // - meme/quote
+        // - video game quotes / reference ("Trinkets, Odds and ends, that sort of
+        // thing" - Skyrim)
+        // - anime quotes/reference ("Nah I'd Win")
 
         return null;
     }
@@ -117,8 +119,8 @@ public class FMShopDescGen {
     }
 
     protected static String cringeDescriptions() {
-//        <3
-//        I love him/Ilove her/I miss her
+        // <3
+        // I love him/Ilove her/I miss her
         return null;
     }
 
@@ -181,18 +183,15 @@ public class FMShopDescGen {
         return input; // Return the original string if the chance condition is not met
     }
 
-
     protected static String itemNameAcronymConverter(String str) {
         return ITEM_ACRONYM_MAP.getOrDefault(str, str); // Return the acronym or the original string if not found
     }
-
 
     protected static String trimColorsFromEquipNames(String str) {
         // Define a list of common color names to remove
         List<String> colors = List.of(
                 "Dark", "Red", "Blue", "Green", "White", "Black",
-                "Purple", "Yellow", "Orange", "Pink", "Silver", "Gold", "Brown"
-        );
+                "Purple", "Yellow", "Orange", "Pink", "Silver", "Gold", "Brown");
 
         // Iterate through the list of colors and remove them from the string
         for (String color : colors) {
@@ -203,7 +202,6 @@ public class FMShopDescGen {
 
         return str;
     }
-
 
     protected static String trimTextFromItemNames(String str) {
         if (str == null || str.isEmpty()) {
@@ -292,7 +290,6 @@ public class FMShopDescGen {
         return mostExpensiveItem;
     }
 
-
     protected static String getRandomTopFMClan() {
         if (topFMClans.isEmpty()) {
             for (int i = 0; i < 7; i++) {
@@ -320,7 +317,8 @@ public class FMShopDescGen {
 
     /**
      * Gets a name for a shop owner. ~35% chance to pick from existing bot character
-     * names (simulates an online player's shop), otherwise draws a fresh unique name
+     * names (simulates an online player's shop), otherwise draws a fresh unique
+     * name
      * (simulates an offline player's shop).
      */
     public static synchronized String getRandomShopOwnerIGN() {
@@ -344,47 +342,63 @@ public class FMShopDescGen {
     }
 
     private static List<String> loadAndShuffleNames() {
-        String filePath = resolveFilePath("ign");
+        String resourcePath = resolveResourcePath("ign");
         List<String> names = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (!line.isEmpty() && line.length() <= 12) {
-                    names.add(line);
+
+        try (InputStream inputStream = FMShopDescGen.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (inputStream == null) {
+                throw new IllegalArgumentException("Resource not found: " + resourcePath);
+            }
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (!line.isEmpty() && line.length() <= 12) {
+                        names.add(line);
+                    }
                 }
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
+
         Collections.shuffle(names);
         return names;
     }
 
-    protected static String resolveFilePath(String type) {
-        return typeToFilePath.getOrDefault(type, ""); // Default to empty string if type not found
+    protected static String resolveResourcePath(String type) {
+        return typeToResourcePath.getOrDefault(type, ""); // Default to empty string if type not found
     }
 
     protected static String getRandomStoreDescription(String type) {
-        String filePath = resolveFilePath(type);
+        String resourcePath = resolveResourcePath(type);
 
-        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
-            String line;
-            String result = null;
-            Random random = new Random();
-            int count = 0;
+        // Use the class loader to get the resource as an InputStream
+        try (InputStream inputStream = FMShopDescGen.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (inputStream == null) {
+                throw new IllegalArgumentException("Resource not found: " + resourcePath);
+            }
 
-            while ((line = reader.readLine()) != null) {
-                count++;
-                if (random.nextInt(count) == 0) {
-                    result = line;
+            // Chain InputStreamReader and BufferedReader to read line-by-line
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                String line;
+                String result = null;
+                Random random = new Random();
+                int count = 0;
+
+                while ((line = reader.readLine()) != null) {
+                    count++;
+                    if (random.nextInt(count) == 0) {
+                        result = line;
+                    }
                 }
-            }
 
-            if (result == null) {
-                throw new IOException("File is empty: " + filePath);
-            }
+                if (result == null) {
+                    throw new IOException("File is empty: " + resourcePath);
+                }
 
-            return result;
+                return result;
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -404,7 +418,8 @@ public class FMShopDescGen {
 
         String borderStyle = selectRandomAsciiBorderCharacters(maxBorderStyleLength);
         if (str == null || str.length() > maxLineLength - 2) {
-            throw new IllegalArgumentException("String must be non-null and fit within the max line length with borders.");
+            throw new IllegalArgumentException(
+                    "String must be non-null and fit within the max line length with borders.");
         }
 
         // Calculate the number of border characters needed on each side
@@ -417,7 +432,7 @@ public class FMShopDescGen {
     protected static String selectRandomAsciiBorderCharacters(int maxBorderStyleLength) {
         List<String> borderStyles = new ArrayList<>(List.of("-", "~", "~~", ".:", "*"));
         borderStyles.add("--");
-//        borderStyles.add("==");
+        // borderStyles.add("==");
         borderStyles.add("++");
         borderStyles.add("'~.");
 
@@ -429,7 +444,8 @@ public class FMShopDescGen {
             }
         }
 
-        // If no styles meet the length condition, return an empty string or a default value
+        // If no styles meet the length condition, return an empty string or a default
+        // value
         if (filteredStyles.isEmpty()) {
             return ""; // Or a default style like "-" or "N/A"
         }
