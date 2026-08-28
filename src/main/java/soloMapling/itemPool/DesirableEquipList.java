@@ -2,33 +2,42 @@ package soloMapling.itemPool;
 
 import com.esotericsoftware.yamlbeans.YamlReader;
 
-import java.io.FileReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.*;
 
 public class DesirableEquipList {
 
-    private static final String YAML_PATH = "src/main/java/soloMapling/itemPool/itemConfig/desirableEquips.yaml";
+    private static final String YAML_PATH = "soloMapling/itemPool/itemConfig/desirableEquips.yaml";
     private static final Set<Integer> desirableIds = new HashSet<>();
     private static boolean loaded = false;
 
+    @SuppressWarnings("unchecked")
     public static synchronized void load() {
-        if (loaded) return;
+        if (loaded)
+            return;
         long start = System.currentTimeMillis();
-        try {
-            YamlReader reader = new YamlReader(new FileReader(YAML_PATH));
-            @SuppressWarnings("unchecked")
-            Map<String, List<String>> categories = (Map<String, List<String>>) reader.read();
-            if (categories == null) {
-                loaded = true;
-                return;
+
+        try (InputStream inputStream = DesirableEquipList.class.getClassLoader().getResourceAsStream(YAML_PATH)) {
+            if (inputStream == null) {
+                throw new IllegalArgumentException("Resource not found: " + YAML_PATH);
             }
-            for (Map.Entry<String, List<String>> entry : categories.entrySet()) {
-                List<String> ids = entry.getValue();
-                if (ids == null) continue;
-                for (String raw : ids) {
-                    try {
-                        desirableIds.add(Integer.parseInt(raw.toString().trim()));
-                    } catch (NumberFormatException ignored) {
+
+            try (YamlReader reader = new YamlReader(new InputStreamReader(inputStream))) {
+                Map<String, List<String>> categories = (Map<String, List<String>>) reader.read();
+                if (categories == null) {
+                    loaded = true;
+                    return;
+                }
+                for (Map.Entry<String, List<String>> entry : categories.entrySet()) {
+                    List<String> ids = entry.getValue();
+                    if (ids == null)
+                        continue;
+                    for (String raw : ids) {
+                        try {
+                            desirableIds.add(Integer.parseInt(raw.toString().trim()));
+                        } catch (NumberFormatException ignored) {
+                        }
                     }
                 }
             }
