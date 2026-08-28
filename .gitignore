@@ -3,6 +3,7 @@
 !.idea/codeStyles/
 *.iml
 /target
+/.vscode/
 
 # GCMoveSystem runtime-generated nav/world graph caches (CWD-relative)
 /cache/
