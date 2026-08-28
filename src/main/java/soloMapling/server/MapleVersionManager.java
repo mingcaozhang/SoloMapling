@@ -1,6 +1,7 @@
 package soloMapling.server;
 
-import java.io.FileReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.Map;
 
 import com.esotericsoftware.yamlbeans.YamlReader;
@@ -13,9 +14,8 @@ public class MapleVersionManager {
     private static Map<String, String> npcReleaseVersions;
     private static Map<String, String> portalReleaseVersions;
 
-    private static final String portalVersionYaml = "src/main/java/soloMapling/server/portal_versions.yaml";
-    private static final String npcVersionYaml = "src/main/java/soloMapling/server/npc_versions.yaml";
-
+    private static final String portalVersionYaml = "soloMapling/server/portal_versions.yaml";
+    private static final String npcVersionYaml = "soloMapling/server/npc_versions.yaml";
 
     public static int getItemPoolVersion() {
         return itemPoolVersion;
@@ -25,12 +25,17 @@ public class MapleVersionManager {
         return version;
     }
 
+    @SuppressWarnings("unchecked")
+    private static void loadFromYaml(String yamlFilePath, String fieldName) {
+        try (InputStream inputStream = MapleVersionManager.class.getClassLoader().getResourceAsStream(yamlFilePath)) {
+            if (inputStream == null) {
+                throw new IllegalArgumentException("Resource not found: " + yamlFilePath);
+            }
 
-    public static void loadNPCVersions(String yamlFilePath) {
-        try {
-            YamlReader reader = new YamlReader(new FileReader(yamlFilePath));
-            Map<String, Map<String, String>> data = (Map<String, Map<String, String>>) reader.read();
-            npcReleaseVersions = data.get("npc_versions");
+            try (YamlReader reader = new YamlReader(new InputStreamReader(inputStream))) {
+                Map<String, Map<String, String>> data = (Map<String, Map<String, String>>) reader.read();
+                npcReleaseVersions = data.get(fieldName);
+            }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -38,35 +43,25 @@ public class MapleVersionManager {
 
     public static boolean isNPCinCurrentVersion(int npcId) {
         if (npcReleaseVersions == null) {
-            loadNPCVersions(npcVersionYaml);
+            loadFromYaml(npcVersionYaml, "npc_versions");
         }
 
         String npcVersion = (npcReleaseVersions.get((String.valueOf(npcId))));
         if (npcVersion == null) {
-            return true;  // NPC not found in omit list
+            return true; // NPC not found in omit list
         }
 
         return (Integer.parseInt(npcVersion) <= getVersion());
     }
 
-    public static void loadPortalVersions(String yamlFilePath) {
-        try {
-            YamlReader reader = new YamlReader(new FileReader(yamlFilePath));
-            Map<String, Map<String, String>> data = (Map<String, Map<String, String>>) reader.read();
-            portalReleaseVersions = data.get("portal_versions");
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     public static boolean isPortalinCurrentVersion(int portalId) {
         if (portalReleaseVersions == null) {
-            loadPortalVersions(portalVersionYaml);
+            loadFromYaml(portalVersionYaml, "portal_versions");
         }
 
         String portalVersion = (portalReleaseVersions.get((String.valueOf(portalId))));
         if (portalVersion == null) {
-            return true;  // Portal not found in omit list
+            return true; // Portal not found in omit list
         }
 
         return (Integer.parseInt(portalVersion) <= getVersion());
