@@ -98,7 +98,8 @@ public class CashShop {
         }
 
         try (Connection con = DatabaseConnection.getConnection()) {
-            try (PreparedStatement ps = con.prepareStatement("SELECT `nxCredit`, `maplePoint`, `nxPrepaid` FROM `accounts` WHERE `id` = ?")) {
+            try (PreparedStatement ps = con
+                    .prepareStatement("SELECT `nxCredit`, `maplePoint`, `nxPrepaid` FROM `accounts` WHERE `id` = ?")) {
                 ps.setInt(1, accountId);
 
                 try (ResultSet rs = ps.executeQuery()) {
@@ -182,12 +183,15 @@ public class CashShop {
                 if (period == 1) {
                     switch (itemId) {
                         case ItemId.DROP_COUPON_2X_4H,
-                             ItemId.EXP_COUPON_2X_4H: // 4 Hour 2X coupons, the period is 1, but we don't want them to last a day.
+                                ItemId.EXP_COUPON_2X_4H: // 4 Hour 2X coupons, the period is 1, but we don't want them
+                                                         // to last a day.
                             item.setExpiration(Server.getInstance().getCurrentTime() + HOURS.toMillis(4));
                             /*
-                            } else if(itemId == 5211047 || itemId == 5360014) { // 3 Hour 2X coupons, unused as of now
-                                    item.setExpiration(Server.getInstance().getCurrentTime() + HOURS.toMillis(3));
-                            */
+                             * } else if(itemId == 5211047 || itemId == 5360014) { // 3 Hour 2X coupons,
+                             * unused as of now
+                             * item.setExpiration(Server.getInstance().getCurrentTime() +
+                             * HOURS.toMillis(3));
+                             */
                             break;
                         case ItemId.EXP_COUPON_3X_2H:
                             item.setExpiration(Server.getInstance().getCurrentTime() + HOURS.toMillis(2));
@@ -209,7 +213,7 @@ public class CashShop {
     public static class SpecialCashItem {
         private final int sn;
         private final int modifier;
-        private final byte info; //?
+        private final byte info; // ?
 
         public SpecialCashItem(int sn, int modifier, byte info) {
             this.sn = sn;
@@ -242,9 +246,11 @@ public class CashShop {
             for (Data item : etc.getData("Commodity.img").getChildren()) {
                 int sn = DataTool.getIntConvert("SN", item);
                 int itemId = DataTool.getIntConvert("ItemId", item);
-                int price = DataTool.getIntConvert("Price", item, 0);
+                int price = YamlConfig.config.server.USE_FREE_CASH_SHOP_ITEMS ? 0
+                        : DataTool.getIntConvert("Price", item, 0);
                 long period = DataTool.getIntConvert("Period", item, 1);
-                short count = (short) DataTool.getIntConvert("Count", item, 1);
+                short count = YamlConfig.config.server.USE_LARGE_STACK_CASH_SHOP_ITEMS ? 1000
+                        : (short) DataTool.getIntConvert("Count", item, 1);
                 boolean onSale = DataTool.getIntConvert("OnSale", item, 0) == 1;
                 loadedItems.put(sn, new CashItem(sn, itemId, price, period, count, onSale));
             }
@@ -264,10 +270,11 @@ public class CashShop {
 
             List<SpecialCashItem> loadedSpecialItems = new ArrayList<>();
             try (Connection con = DatabaseConnection.getConnection();
-                 PreparedStatement ps = con.prepareStatement("SELECT * FROM specialcashitems");
-                 ResultSet rs = ps.executeQuery()) {
+                    PreparedStatement ps = con.prepareStatement("SELECT * FROM specialcashitems");
+                    ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    loadedSpecialItems.add(new SpecialCashItem(rs.getInt("sn"), rs.getInt("modifier"), rs.getByte("info")));
+                    loadedSpecialItems
+                            .add(new SpecialCashItem(rs.getInt("sn"), rs.getInt("modifier"), rs.getByte("info")));
                 }
             } catch (SQLException ex) {
                 ex.printStackTrace();
@@ -414,7 +421,7 @@ public class CashShop {
 
     public void gift(int recipient, String from, String message, int sn, int ringid) {
         try (Connection con = DatabaseConnection.getConnection();
-             PreparedStatement ps = con.prepareStatement("INSERT INTO `gifts` VALUES (DEFAULT, ?, ?, ?, ?, ?)")) {
+                PreparedStatement ps = con.prepareStatement("INSERT INTO `gifts` VALUES (DEFAULT, ?, ?, ?, ?, ?)")) {
             ps.setInt(1, recipient);
             ps.setString(2, from);
             ps.setString(3, message);
@@ -449,7 +456,7 @@ public class CashShop {
                             gifts.add(new Pair<>(item, rs.getString("message")));
                         }
 
-                        if (CashItemFactory.isPackage(cItem.getItemId())) { //Packages never contains a ring
+                        if (CashItemFactory.isPackage(cItem.getItemId())) { // Packages never contains a ring
                             for (Item packageItem : CashItemFactory.getPackage(cItem.getItemId())) {
                                 packageItem.setGiftFrom(rs.getString("from"));
                                 addToInventory(packageItem);
@@ -481,7 +488,8 @@ public class CashShop {
     }
 
     public void save(Connection con) throws SQLException {
-        try (PreparedStatement ps = con.prepareStatement("UPDATE `accounts` SET `nxCredit` = ?, `maplePoint` = ?, `nxPrepaid` = ? WHERE `id` = ?")) {
+        try (PreparedStatement ps = con.prepareStatement(
+                "UPDATE `accounts` SET `nxCredit` = ?, `maplePoint` = ?, `nxPrepaid` = ? WHERE `id` = ?")) {
             ps.setInt(1, nxCredit);
             ps.setInt(2, maplePoint);
             ps.setInt(3, nxPrepaid);

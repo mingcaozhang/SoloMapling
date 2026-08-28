@@ -129,6 +129,9 @@ public class ServerConfig {
     public boolean USE_CLEAR_OUTDATED_COUPONS;
     public boolean ALLOW_CASHSHOP_NAME_CHANGE;
     public boolean ALLOW_CASHSHOP_WORLD_TRANSFER;//Allows players to buy world transfers in the cash shop.
+    public boolean USE_FREE_CASH_SHOP_ITEMS;
+    public boolean USE_UNLIMITED_CASH_SHOP_ITEMS;
+    public boolean USE_LARGE_STACK_CASH_SHOP_ITEMS;
 
     //Maker Configuration
     public boolean USE_MAKER_PERMISSIVE_ATKUP;

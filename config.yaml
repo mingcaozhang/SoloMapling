@@ -279,6 +279,9 @@ server:
     USE_CLEAR_OUTDATED_COUPONS: true    #Enables deletion of older code coupon registry from the DB, freeing so-long irrelevant data.
     ALLOW_CASHSHOP_NAME_CHANGE: true    #Allows players to buy name changes in the cash shop.
     ALLOW_CASHSHOP_WORLD_TRANSFER: true  #Allows players to buy world transfers in the cash shop.
+    USE_FREE_CASH_SHOP_ITEMS: true       #Sets all cash shop items to be free
+    USE_UNLIMITED_CASH_SHOP_ITEMS: true  #Sets all cash shop items to not expire
+    USE_LARGE_STACK_CASH_SHOP_ITEMS: true #Sets items to stacks of 1000 if stacked
 
     #Maker Configuration
     USE_MAKER_PERMISSIVE_ATKUP: false    #Allows players to use attack-based strengthening gems on non-weapon items.
