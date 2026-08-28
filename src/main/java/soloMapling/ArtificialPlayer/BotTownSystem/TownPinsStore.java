@@ -53,7 +53,7 @@ public final class TownPinsStore {
         try (InputStream inputStream = TownPinsStore.class.getClassLoader().getResourceAsStream(cleanPath)) {
             if (inputStream == null) {
                 // Replicates the original file.exists() check safely for classpath contexts
-                System.out.println("[TownPinsStore] pins resource file not found, returning empty configuration.");
+                // System.out.println("[TownPinsStore] pins resource file not found, returning empty configuration.");
                 return out;
             }
 
