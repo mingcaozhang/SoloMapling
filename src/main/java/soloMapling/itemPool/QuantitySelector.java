@@ -9,11 +9,11 @@ import java.util.Random;
 
 public class QuantitySelector {
     private static ItemQuantityConfig config;
-    static String filePath = "src/main/java/soloMapling/itemPool/itemConfig/itemQuantities.yaml";
+    static String resourcePath = "soloMapling/itemPool/itemConfig/itemQuantities.yaml";
 
     // Load configuration at the start
     public static void loadConfig() {
-        config = ItemQuantityConfig.readYaml(filePath);
+        config = ItemQuantityConfig.readYaml(resourcePath);
         if (config == null) {
             throw new RuntimeException("Failed to load configuration.");
         }
