@@ -11,7 +11,8 @@ import soloMapling.ArtificialPlayer.BotTypes.SocialBot;
 import soloMapling.server.ExecutorServiceManager;
 
 import java.awt.*;
-import java.io.FileReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ScheduledFuture;
@@ -58,7 +59,7 @@ public class ConversationManager {
     // nobody's watching.
     private volatile Set<Integer> ambientMapIds = buildAmbientMapIds();
 
-    private static final String DIALOGUE_YAML = "src/main/java/soloMapling/ArtificialPlayer/BotDialoguePack/ConversationDialogue.yaml";
+    private static final String DIALOGUE_YAML = "soloMapling/ArtificialPlayer/BotDialoguePack/ConversationDialogue.yaml";
 
     private final Set<Integer> botsInConversation = Collections.synchronizedSet(new HashSet<>());
     private final LinkedList<String> recentScriptIds = new LinkedList<>();
@@ -360,33 +361,39 @@ public class ConversationManager {
     @SuppressWarnings("unchecked")
     private void loadScripts() {
         allScripts = new ArrayList<>();
-        try {
-            YamlReader reader = new YamlReader(new FileReader(DIALOGUE_YAML));
-            Map<String, Object> root = (Map<String, Object>) reader.read();
-            Map<String, Object> conversations = (Map<String, Object>) root.get("conversations");
-            if (conversations == null) return;
-
-            for (Map.Entry<String, Object> entry : conversations.entrySet()) {
-                String id = entry.getKey();
-                Map<String, Object> convoMap = (Map<String, Object>) entry.getValue();
-
-                int participants = toInt(convoMap.get("participants"));
-                List<Object> linesList = (List<Object>) convoMap.get("lines");
-                if (linesList == null) continue;
-
-                List<ConversationScript.ConversationLine> parsedLines = new ArrayList<>();
-                for (Object lineObj : linesList) {
-                    Map<String, Object> lineMap = (Map<String, Object>) lineObj;
-                    String speaker = (String) lineMap.get("speaker");
-                    String text = (String) lineMap.get("text");
-                    int emote = lineMap.containsKey("emote") ? toInt(lineMap.get("emote")) : -1;
-                    long delay = 6000 + random.nextInt(3001);
-                    parsedLines.add(new ConversationScript.ConversationLine(speaker, text, emote, delay));
-                }
-
-                allScripts.add(new ConversationScript(id, participants, parsedLines));
+    
+        // Ensure DIALOGUE_YAML is a classpath relative path (e.g., "soloMapling/dialogue.yaml")
+        try (InputStream inputStream = this.getClass().getClassLoader().getResourceAsStream(DIALOGUE_YAML)) {
+            if (inputStream == null) {
+                throw new IllegalArgumentException("Resource not found: " + DIALOGUE_YAML);
             }
 
+            try (// Chain InputStreamReader into the YamlReader
+            YamlReader reader = new YamlReader(new InputStreamReader(inputStream))) {
+                Map<String, Object> root = (Map<String, Object>) reader.read();
+                Map<String, Object> conversations = (Map<String, Object>) root.get("conversations");
+                if (conversations == null) return;
+
+                for (Map.Entry<String, Object> entry : conversations.entrySet()) {
+                    String id = entry.getKey();
+                    Map<String, Object> convoMap = (Map<String, Object>) entry.getValue();
+
+                    int participants = toInt(convoMap.get("participants"));
+                    List<Object> linesList = (List<Object>) convoMap.get("lines");
+                    if (linesList == null) continue;
+
+                    List<ConversationScript.ConversationLine> parsedLines = new ArrayList<>();
+                    for (Object lineObj : linesList) {
+                        Map<String, Object> lineMap = (Map<String, Object>) lineObj;
+                        String speaker = (String) lineMap.get("speaker");
+                        String text = (String) lineMap.get("text");
+                        int emote = lineMap.containsKey("emote") ? toInt(lineMap.get("emote")) : -1;
+                        long delay = 6000 + random.nextInt(3001);
+                        parsedLines.add(new ConversationScript.ConversationLine(speaker, text, emote, delay));
+                    }
+                    allScripts.add(new ConversationScript(id, participants, parsedLines));
+                }
+            }
             log("[ConversationManager] Loaded " + allScripts.size() + " conversation scripts.");
         } catch (Exception e) {
             log("[ConversationManager] Failed to load conversation scripts: " + e.getMessage());
