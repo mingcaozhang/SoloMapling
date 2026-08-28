@@ -1,9 +1,10 @@
 package soloMapling.itemPool;
+
 import com.esotericsoftware.yamlbeans.YamlReader;
 
-import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -14,21 +15,25 @@ public class GachaFillerSystem {
     private static final double DEFAULT_ITEM_REPLACE_CHANCE = 0.30; // % chance to replace coin with item
 
     // Type probabilities (must sum to 1.0)
-    private static final Map<String, Double> TYPE_PROBABILITIES = new HashMap<>() {{
-        put("useables", 0.50);
-        put("ores", 0.20);
-        put("jewels", 0.20);
-        put("crystals", 0.10);
-    }};
+    private static final Map<String, Double> TYPE_PROBABILITIES = new HashMap<>() {
+        {
+            put("useables", 0.50);
+            put("ores", 0.20);
+            put("jewels", 0.20);
+            put("crystals", 0.10);
+        }
+    };
 
     // Tier probabilities (must sum to 1.0)
-    private static final Map<String, Double> TIER_PROBABILITIES = new HashMap<>() {{
-        put("s_tier", 0.20);
-        put("a_tier", 0.30);
-        put("b_tier", 0.50);
-    }};
+    private static final Map<String, Double> TIER_PROBABILITIES = new HashMap<>() {
+        {
+            put("s_tier", 0.20);
+            put("a_tier", 0.30);
+            put("b_tier", 0.50);
+        }
+    };
 
-    private static final String YAML_PATH = "src/main/java/soloMapling/itemPool/itemConfig/gachaFiller.yaml";
+    private static final String YAML_PATH = "soloMapling/itemPool/itemConfig/gachaFiller.yaml";
 
     private static Random random = new Random();
     private static Map<String, Map<String, List<Integer>>> gachaData;
@@ -45,7 +50,7 @@ public class GachaFillerSystem {
     public static List<Integer> createGachaListWithPrize(int prize_id) {
         List<Integer> list = createGachaFillerList();
         int halfwayPoint = list.size() / 4;
-        int insertPosition = halfwayPoint + (int)(Math.random() * (list.size() - halfwayPoint + 1));
+        int insertPosition = halfwayPoint + (int) (Math.random() * (list.size() - halfwayPoint + 1));
         list.add(insertPosition, prize_id);
         return list;
     }
@@ -127,87 +132,85 @@ public class GachaFillerSystem {
 
     public static int getRandomMesoGachaFiller() {
         // Variety of meso drop types. Adds visual flare
-        int[] numbers = {10, 10, 10, 10, 10, 69, 69, 69, 69, 420, 420, 420, 1337};
-        return numbers[(int)(Math.random() * 13)];
+        int[] numbers = { 10, 10, 10, 10, 10, 69, 69, 69, 69, 420, 420, 420, 1337 };
+        return numbers[(int) (Math.random() * 13)];
     }
 
     @SuppressWarnings("unchecked")
     private static void loadGachaData() throws Exception {
-        File yamlFile = new File(YAML_PATH);
+        InputStream inputStream = GachaFillerSystem.class.getClassLoader().getResourceAsStream(YAML_PATH);
 
-        // If file doesn't exist at relative path, try to find it relative to working directory
-        if (!yamlFile.exists()) {
-            String workingDir = System.getProperty("user.dir");
-            yamlFile = new File(workingDir, YAML_PATH);
-
-            if (!yamlFile.exists()) {
-                throw new FileNotFoundException("Cannot find gacha YAML file at: " + yamlFile.getAbsolutePath());
-            }
+        if (inputStream == null) {
+            throw new FileNotFoundException("Cannot find gacha YAML file inside classpath resources at: " + YAML_PATH);
         }
 
-        YamlReader reader = new YamlReader(new FileReader(yamlFile));
-        Object object = reader.read();
+        // Use try-with-resources to automatically manage and close the streams
+        try (InputStream stream = inputStream;
+                InputStreamReader isr = new InputStreamReader(stream)) {
 
-        if (object instanceof Map) {
-            gachaData = new HashMap<>();
-            Map<String, Object> rawData = (Map<String, Object>) object;
+            try (YamlReader reader = new YamlReader(isr)) {
+                Object object = reader.read();
 
-            // Convert the raw data to our expected structure
-            for (Entry<String, Object> typeEntry : rawData.entrySet()) {
-                String type = typeEntry.getKey();
-                Map<String, List<Integer>> tierMap = new HashMap<>();
+                if (object instanceof Map) {
+                    gachaData = new HashMap<>();
+                    Map<String, Object> rawData = (Map<String, Object>) object;
 
-                if (typeEntry.getValue() instanceof Map) {
-                    Map<String, Object> tiers = (Map<String, Object>) typeEntry.getValue();
+                    // Convert the raw data to our expected structure
+                    for (Entry<String, Object> typeEntry : rawData.entrySet()) {
+                        String type = typeEntry.getKey();
+                        Map<String, List<Integer>> tierMap = new HashMap<>();
 
-                    for (Entry<String, Object> tierEntry : tiers.entrySet()) {
-                        String tier = tierEntry.getKey();
-                        List<Integer> items = new ArrayList<>();
+                        if (typeEntry.getValue() instanceof Map) {
+                            Map<String, Object> tiers = (Map<String, Object>) typeEntry.getValue();
 
-                        if (tierEntry.getValue() instanceof List) {
-                            List<?> rawItems = (List<?>) tierEntry.getValue();
-                            for (Object item : rawItems) {
-                                // Handle different number types
-                                if (item instanceof Integer) {
-                                    items.add((Integer) item);
-                                } else if (item instanceof Long) {
-                                    items.add(((Long) item).intValue());
-                                } else if (item instanceof Double) {
-                                    items.add(((Double) item).intValue());
-                                } else if (item instanceof String) {
-                                    // Try to parse string as integer
-                                    try {
-                                        items.add(Integer.parseInt((String) item));
-                                    } catch (NumberFormatException e) {
-                                        System.err.println("Failed to parse item: " + item);
+                            for (Entry<String, Object> tierEntry : tiers.entrySet()) {
+                                String tier = tierEntry.getKey();
+                                List<Integer> items = new ArrayList<>();
+
+                                if (tierEntry.getValue() instanceof List) {
+                                    List<?> rawItems = (List<?>) tierEntry.getValue();
+                                    for (Object item : rawItems) {
+                                        // Handle different number types
+                                        if (item instanceof Integer) {
+                                            items.add((Integer) item);
+                                        } else if (item instanceof Long) {
+                                            items.add(((Long) item).intValue());
+                                        } else if (item instanceof Double) {
+                                            items.add(((Double) item).intValue());
+                                        } else if (item instanceof String) {
+                                            // Try to parse string as integer
+                                            try {
+                                                items.add(Integer.parseInt((String) item));
+                                            } catch (NumberFormatException e) {
+                                                System.err.println("Failed to parse item: " + item);
+                                            }
+                                        }
+                                    }
+                                } else if (tierEntry.getValue() instanceof ArrayList) {
+                                    // YamlBeans might return ArrayList
+                                    ArrayList<?> rawItems = (ArrayList<?>) tierEntry.getValue();
+                                    for (Object item : rawItems) {
+                                        if (item != null) {
+                                            // Convert to string first, then parse
+                                            String itemStr = item.toString();
+                                            try {
+                                                items.add(Integer.parseInt(itemStr));
+                                            } catch (NumberFormatException e) {
+                                                System.err.println("Failed to parse item: " + itemStr);
+                                            }
+                                        }
                                     }
                                 }
-                            }
-                        } else if (tierEntry.getValue() instanceof ArrayList) {
-                            // YamlBeans might return ArrayList
-                            ArrayList<?> rawItems = (ArrayList<?>) tierEntry.getValue();
-                            for (Object item : rawItems) {
-                                if (item != null) {
-                                    // Convert to string first, then parse
-                                    String itemStr = item.toString();
-                                    try {
-                                        items.add(Integer.parseInt(itemStr));
-                                    } catch (NumberFormatException e) {
-                                        System.err.println("Failed to parse item: " + itemStr);
-                                    }
-                                }
+
+                                tierMap.put(tier, items);
                             }
                         }
 
-                        tierMap.put(tier, items);
+                        gachaData.put(type, tierMap);
                     }
                 }
-
-                gachaData.put(type, tierMap);
             }
         }
-
-        reader.close();
     }
 
     // Method to reload gacha data if needed
