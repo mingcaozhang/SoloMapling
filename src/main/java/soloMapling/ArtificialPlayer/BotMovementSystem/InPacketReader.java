@@ -13,7 +13,6 @@ import soloMapling.ArtificialPlayer.BotMovementSystem.MovementStructures.Movemen
 import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -48,15 +47,28 @@ public class InPacketReader {
         return new MovementRecordingRaw(mapId, recordingName, readRawPacketsFromFile(csvFile));
     }
 
-    public static List<MovementPacket> readPacketsFromFile(String binaryFileName) {
+    public static List<MovementPacket> readPacketsFromFile(String resourcePath) {
         List<MovementPacket> packets = new ArrayList<>();
-        try (DataInputStream dis = new DataInputStream(new FileInputStream(binaryFileName))) {
-            while (dis.available() > 0) {
-                packets.add(readSinglePacket(dis));
+
+        // Normalize path separators to forward slashes for classpath uniformity
+        String cleanPath = resourcePath.replace("\\", "/").replaceAll("//+", "/");
+
+        // Retrieve the raw binary resource file via the ClassLoader
+        try (InputStream inputStream = InPacketReader.class.getClassLoader().getResourceAsStream(cleanPath)) {
+            if (inputStream == null) {
+                throw new java.io.FileNotFoundException("Resource binary file not found in classpath: " + cleanPath);
+            }
+
+            // Wrap the classpath stream in your binary DataInputStream decoder
+            try (DataInputStream dis = new DataInputStream(inputStream)) {
+                while (dis.available() > 0) {
+                    packets.add(readSinglePacket(dis));
+                }
             }
         } catch (IOException e) {
-            throw new RuntimeException("Error reading packets from file: " + binaryFileName, e);
+            throw new RuntimeException("Error reading packets from resource: " + cleanPath, e);
         }
+
         return packets;
     }
 
