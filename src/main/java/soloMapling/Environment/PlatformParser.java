@@ -4,6 +4,8 @@ import java.awt.Point;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -21,11 +23,12 @@ import java.util.stream.Collectors;
  * - Lines with single digit numbers (packet counts) are ignored
  * - Movement packets: "0,x,y,..." where x and y are the 2nd and 3rd values
  *
- * Automatically detects whether a platform is FLAT or SLOPED based on Y variance.
+ * Automatically detects whether a platform is FLAT or SLOPED based on Y
+ * variance.
  */
 public class PlatformParser {
 
-    private static final String BASE_PATH = "src/main/java/soloMapling/ArtificialPlayer/BotMovementSystem/movementDataPackets";
+    private static final String BASE_PATH = "soloMapling/ArtificialPlayer/BotMovementSystem/movementDataPackets";
 
     /** Y variance threshold to determine if platform is sloped (in pixels) */
     private static final int SLOPE_THRESHOLD = 50;
@@ -39,29 +42,44 @@ public class PlatformParser {
      */
     public static List<Point> parseCoordinates(int mapId, String fileName) {
         List<Point> coordinates = new ArrayList<>();
-        Path filePath = Paths.get(BASE_PATH, "map" + mapId, fileName + ".csv");
 
-        try (BufferedReader reader = new BufferedReader(new FileReader(filePath.toFile()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                if (line.isEmpty()) {
-                    continue;
-                }
+        String resourcePath = BASE_PATH + "/map" + mapId + "/" + fileName + ".csv";
 
-                // Skip timestamp lines (just a long number) and packet count lines (single digit)
-                if (isTimestampOrPacketCount(line)) {
-                    continue;
-                }
+        // Replace backslashes with forward slashes for classpath uniformity across OS
+        // environments
+        resourcePath = resourcePath.replace("\\", "/").replaceAll("//+", "/");
 
-                // Parse movement packet: 0,x,y,...
-                Point point = parseMovementPacket(line);
-                if (point != null) {
-                    coordinates.add(point);
+        // Use the class loader to stream the file straight from your classpath
+        try (InputStream inputStream = PlatformParser.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (inputStream == null) {
+                System.err.println("Resource file not found in classpath: " + resourcePath);
+                return coordinates;
+            }
+
+            // Chain InputStreamReader and BufferedReader together
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    line = line.trim();
+                    if (line.isEmpty()) {
+                        continue;
+                    }
+
+                    // Skip timestamp lines (just a long number) and packet count lines (single
+                    // digit)
+                    if (isTimestampOrPacketCount(line)) {
+                        continue;
+                    }
+
+                    // Parse movement packet: 0,x,y,...
+                    Point point = parseMovementPacket(line);
+                    if (point != null) {
+                        coordinates.add(point);
+                    }
                 }
             }
         } catch (IOException e) {
-            System.err.println("Failed to parse coordinates from: " + filePath);
+            System.err.println("Failed to parse coordinates from: " + resourcePath);
             e.printStackTrace();
         }
 
