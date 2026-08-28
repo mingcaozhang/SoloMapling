@@ -40,10 +40,14 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class XMLDomMapleData implements Data {
     private final Node node;
+    private final ReentrantLock lock;
     private Path imageDataDir;
+
+    private static final String LOCK_KEY = "XMLDomMapleData.DocumentLock";
 
     public XMLDomMapleData(FileInputStream fis, Path imageDataDir) {
         try {
@@ -51,11 +55,11 @@ public class XMLDomMapleData implements Data {
             DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
             Document document = documentBuilder.parse(fis);
             this.node = document.getFirstChild();
-        } catch (ParserConfigurationException e) {
-            throw new RuntimeException(e);
-        } catch (SAXException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
+
+            // Resolve the non-pinning lock attached directly onto the document metadata
+            // tree
+            this.lock = resolveDocumentLock(this.node);
+        } catch (ParserConfigurationException | SAXException | IOException e) {
             throw new RuntimeException(e);
         }
         this.imageDataDir = imageDataDir;
@@ -63,6 +67,46 @@ public class XMLDomMapleData implements Data {
 
     private XMLDomMapleData(Node node) {
         this.node = node;
+        // Resolve the identical non-pinning lock attached to the document node
+        this.lock = resolveDocumentLock(node);
+    }
+
+    /**
+     * Resolves the ReentrantLock by looking it up or attaching it directly to
+     * the underlying Document object using raw W3C DOM UserData metadata.
+     */
+    private static ReentrantLock resolveDocumentLock(Node targetNode) {
+        Document ownerDoc = (targetNode instanceof Document) ? (Document) targetNode : targetNode.getOwnerDocument();
+        if (ownerDoc == null) {
+            return GlobalLockHolder.INSTANCE;
+        }
+
+        // We synchronize on the ownerDoc instance itself *only* during the microsecond
+        // lookup/attachment
+        synchronized (ownerDoc) {
+            ReentrantLock existingLock = (ReentrantLock) ownerDoc.getUserData(LOCK_KEY);
+            if (existingLock == null) {
+                existingLock = new ReentrantLock();
+                ownerDoc.setUserData(LOCK_KEY, existingLock, null);
+            }
+            return existingLock;
+        }
+    }
+
+    /**
+     * Executes the read operation safely under the non-pinning ReentrantLock.
+     */
+    private <T> T evaluateSafely(java.util.function.Supplier<T> action) {
+        lock.lock();
+        try {
+            return action.get();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private static class GlobalLockHolder {
+        private static final ReentrantLock INSTANCE = new ReentrantLock();
     }
 
     @Override
@@ -73,7 +117,7 @@ public class XMLDomMapleData implements Data {
             return ((Data) getParent()).getChildByPath(path.substring(path.indexOf("/") + 1));
         }
 
-        synchronized (this.node) {
+        return evaluateSafely(() -> {
             Node myNode = this.node;
             for (String s : segments) {
                 NodeList childNodes = myNode.getChildNodes();
@@ -95,14 +139,15 @@ public class XMLDomMapleData implements Data {
             XMLDomMapleData ret = new XMLDomMapleData(myNode);
             ret.imageDataDir = imageDataDir.resolve(getName().trim()).resolve(path).getParent();
             return ret;
-        }
+
+        });
     }
 
     @Override
     public List<Data> getChildren() {
         List<Data> ret = new ArrayList<>();
 
-        synchronized (this.node) {
+        return evaluateSafely(() -> {
             NodeList childNodes = node.getChildNodes();
             for (int i = 0; i < childNodes.getLength(); i++) {
                 Node childNode = childNodes.item(i);
@@ -114,12 +159,12 @@ public class XMLDomMapleData implements Data {
             }
 
             return ret;
-        }
+        });
     }
 
     @Override
     public Object getData() {
-        synchronized (this.node) {
+        return evaluateSafely(() -> {
             NamedNodeMap attributes = node.getAttributes();
             DataType type = getType();
             switch (type) {
@@ -156,12 +201,12 @@ public class XMLDomMapleData implements Data {
                 default:
                     return null;
             }
-        }
+        });
     }
 
     @Override
     public DataType getType() {
-        synchronized (this.node) {
+        return evaluateSafely(() -> {
             String nodeName = node.getNodeName();
 
             switch (nodeName) {
@@ -191,12 +236,12 @@ public class XMLDomMapleData implements Data {
                     return DataType.IMG_0x00;
             }
             return null;
-        }
+        });
     }
 
     @Override
     public DataEntity getParent() {
-        synchronized (this.node) {
+        return evaluateSafely(() -> {
             Node parentNode = this.node.getParentNode();
             if (parentNode.getNodeType() == Node.DOCUMENT_NODE) {
                 return null;
@@ -204,14 +249,14 @@ public class XMLDomMapleData implements Data {
             XMLDomMapleData parentData = new XMLDomMapleData(parentNode);
             parentData.imageDataDir = imageDataDir.getParent();
             return parentData;
-        }
+        });
     }
 
     @Override
     public String getName() {
-        synchronized (this.node) {
+        return evaluateSafely(() -> {
             return node.getAttributes().getNamedItem("name").getNodeValue();
-        }
+        });
     }
 
     @Override
