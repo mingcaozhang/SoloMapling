@@ -10,22 +10,18 @@ import org.jgrapht.nio.dot.DOTExporter;
 import soloMapling.ArtificialPlayer.BotMovementSystem.MovementStructures.MovementRecordingRaw;
 
 import java.awt.*;
-import java.io.File;
 import java.io.FileWriter;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.io.File;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.stream.Collectors;
 
 import static soloMapling.ArtificialPlayer.BotMovementSystem.InPacketReader.getMovementRecordingRaw;
 import static soloMapling.DebugUtilities.debugprint;
+import static soloMapling.Environment.PlatformPlacement.getAvailablePlatformIds;
 
 public class MapGraph {
 
@@ -34,11 +30,9 @@ public class MapGraph {
     private Graph<String, NamedEdge> graph;
     private List<String> mainAreas = new ArrayList<>();
     private List<String> connectors = new ArrayList<>();
-    File directory;
 
     public MapGraph(int mapId) {
         this.mapId = mapId; // convertFMMapDirectoryID(mapId);
-        this.directory = new File("src/main/java/soloMapling/ArtificialPlayer/BotMovementSystem/movementDataPackets/map" + this.mapId);
         this.setMainAreas();
         this.setConnectors();
         this.buildGraph();
@@ -46,21 +40,21 @@ public class MapGraph {
 
     //
 
-//    private static final int[][] FM_MAP_RANGES = {
-//            {910000001, 910000006, 910000001},
-//            {910000007, 910000012, 910000007},
-//            {910000013, 910000017, 910000013},
-//            {910000018, 910000022, 910000018}
-//    };
-//
-//    private static int convertFMMapDirectoryID(int mapId) {
-//        for (int[] range : FM_MAP_RANGES) {
-//            if (mapId >= range[0] && mapId <= range[1]) {
-//                return range[2];
-//            }
-//        }
-//        return mapId; // not FM Map, return given
-//    }
+    // private static final int[][] FM_MAP_RANGES = {
+    // {910000001, 910000006, 910000001},
+    // {910000007, 910000012, 910000007},
+    // {910000013, 910000017, 910000013},
+    // {910000018, 910000022, 910000018}
+    // };
+    //
+    // private static int convertFMMapDirectoryID(int mapId) {
+    // for (int[] range : FM_MAP_RANGES) {
+    // if (mapId >= range[0] && mapId <= range[1]) {
+    // return range[2];
+    // }
+    // }
+    // return mapId; // not FM Map, return given
+    // }
 
     public List<String> getMainAreaOfPoint(Point pt) {
         return getElementsContainingPoint(getMainAreas(), pt);
@@ -106,8 +100,10 @@ public class MapGraph {
     }
 
     /**
-     * Soft-validates a GraphPath. Returns false and debug-logs on any problem so the
-     * caller can skip the path gracefully. A null / malformed graph just means the bot
+     * Soft-validates a GraphPath. Returns false and debug-logs on any problem so
+     * the
+     * caller can skip the path gracefully. A null / malformed graph just means the
+     * bot
      * won't walk for this tick — not a game-breaking condition, so no exceptions.
      */
     private static boolean isValidGraph(GraphPath<String, NamedEdge> graph) {
@@ -145,21 +141,28 @@ public class MapGraph {
     }
 
     public void setMainAreas() {
-        if (!directory.exists()) {
-            debugprint("MapGraph: no movement-packet dir for map " + mapId);
+        // Query our classpath manifest index for all available platforms for this map
+        List<String> platformIds = getAvailablePlatformIds(this.mapId);
+
+        if (platformIds.isEmpty()) {
+            debugprint("MapGraph: no movement-packet platforms found in manifest for map " + mapId);
             return;
         }
 
-        File[] files = directory.listFiles();
         HashSet<String> uniqueMainAreas = new HashSet<>();
 
-        for (File file : files) {
-            String fileName = file.getName();
-            // Check if the file is a main area file (e.g., m1.bin, m2.csv)
-            if (fileName.startsWith("m") && fileName.contains(".")) {
-                int dotIndex = fileName.indexOf('.');
-                String mainArea = fileName.substring(0, dotIndex);
-                uniqueMainAreas.add(mainArea);
+        for (String platformId : platformIds) {
+            // Handle files in subdirectories by grabbing just the file name component
+            // e.g., "smallMovement/m1" -> "m1"
+            String fileName = platformId.contains("/")
+                    ? platformId.substring(platformId.lastIndexOf('/') + 1)
+                    : platformId;
+
+            // Check if the platform identifier represents a main area (starts with 'm')
+            if (fileName.startsWith("m")) {
+                uniqueMainAreas.add(platformId);
+                // Note: If other code expects just "m1" instead of "subfolder/m1",
+                // change the line above to: uniqueMainAreas.add(fileName);
             }
         }
 
@@ -169,21 +172,31 @@ public class MapGraph {
     }
 
     public void setConnectors() {
-        if (!directory.exists()) {
-            debugprint("MapGraph: no movement-packet dir for map " + mapId);
+        // Query our classpath manifest index for all available platforms for this map
+        List<String> platformIds = getAvailablePlatformIds(this.mapId);
+
+        if (platformIds.isEmpty()) {
+            debugprint("MapGraph: no movement-packet platforms found in manifest for map " + mapId);
             return;
         }
 
-        File[] files = directory.listFiles();
         HashSet<String> uniqueConnectors = new HashSet<>();
 
-        for (File file : files) {
-            String fileName = file.getName();
-            // Check if the file is a connector file (e.g., c1-4.bin, c4-1.csv)
+        for (String platformId : platformIds) {
+            // Handle files tucked inside subdirectories by isolating the raw file name
+            // component
+            // e.g., "New folder/c4-5_social" -> "c4-5_social"
+            String fileName = platformId.contains("/")
+                    ? platformId.substring(platformId.lastIndexOf('/') + 1)
+                    : platformId;
+
+            // Check if the file is a connector file (starts with 'c' and contains '-')
             if (fileName.startsWith("c") && fileName.contains("-")) {
-                int dotIndex = fileName.indexOf('.');
-                String connector = fileName.substring(0, dotIndex);
-                uniqueConnectors.add(connector);
+                uniqueConnectors.add(platformId);
+                // Note: If downstream path logic exclusively expects the raw name (like
+                // "c4-5_social")
+                // without its subdirectory grouping prefix, change the line above to:
+                // uniqueConnectors.add(fileName);
             }
         }
 
@@ -206,7 +219,8 @@ public class MapGraph {
             // Split by hyphen to get the node numbers and optional suffix
             String[] parts = withoutPrefix.split("-");
 
-//            debugprint("withoutPrefix", withoutPrefix, "parts", Arrays.stream(parts).toList());
+            // debugprint("withoutPrefix", withoutPrefix, "parts",
+            // Arrays.stream(parts).toList());
 
             // Get start and end nodes
             String startNode = "m" + parts[0];
@@ -217,7 +231,7 @@ public class MapGraph {
             // Remove "_social" notation
             endNode = endNode.replaceAll("_social", "");
 
-//            debugprint("startnode", startNode, "endnode", endNode);
+            // debugprint("startnode", startNode, "endnode", endNode);
 
             // Verify and get the actual node names from mainAreas
             String actualStartNode = findActualNodeName(startNode);
@@ -233,7 +247,8 @@ public class MapGraph {
                 continue; // Skip this connector
             }
 
-//            debugprint("Verified nodes - start:", actualStartNode, "end:", actualEndNode);
+            // debugprint("Verified nodes - start:", actualStartNode, "end:",
+            // actualEndNode);
 
             // Add the edge to the graph using the actual node names
             addNamedEdge(graph, actualStartNode, actualEndNode, connector);
@@ -242,7 +257,8 @@ public class MapGraph {
 
     /**
      * Finds the actual node name in mainAreas.
-     * Matches exact names first, then checks for names with suffixes like "_social".
+     * Matches exact names first, then checks for names with suffixes like
+     * "_social".
      *
      * @param nodeName The node name to search for (e.g., "m4", "m5")
      * @return The actual node name from mainAreas, or null if not found
@@ -271,7 +287,7 @@ public class MapGraph {
         addVertexFromMainAreas();
         addEdgesFromConnectors();
 
-//        printGraphNodesVertices();
+        // printGraphNodesVertices();
         if (drawGraphDot) {
             drawGraph(graph);
         }
@@ -314,17 +330,17 @@ public class MapGraph {
             buildGraph();
         }
         List<GraphPath<String, NamedEdge>> allPaths = getAllPaths(startNode, endNode, 10);
-//        debugprint("Before removeMaxLength Paths");
-//        for (GraphPath<String, NamedEdge> path : allPaths) {
-//            debugprint("Path: ", path);
-//        }
+        // debugprint("Before removeMaxLength Paths");
+        // for (GraphPath<String, NamedEdge> path : allPaths) {
+        // debugprint("Path: ", path);
+        // }
 
         if (removeMaxLengthPaths) {
             allPaths = removeMaxLengthPaths(allPaths);
-//            debugprint("After removeMaxLength Paths");
-//            for (GraphPath<String, NamedEdge> path : allPaths) {
-//                debugprint("Path: ", path);
-//            }
+            // debugprint("After removeMaxLength Paths");
+            // for (GraphPath<String, NamedEdge> path : allPaths) {
+            // debugprint("Path: ", path);
+            // }
         }
 
         try {
@@ -367,29 +383,26 @@ public class MapGraph {
                 .collect(Collectors.toList());
     }
 
-
     // todo getShortestDurationPath
     // shortest path based on time duration of connectors & main areas
 
     // Helper method to add a named edge
     private void addNamedEdge(Graph<String, NamedEdge> graph,
-                              String source,
-                              String target,
-                              String edgeName) {
+            String source,
+            String target,
+            String edgeName) {
         NamedEdge edge = new NamedEdge(edgeName);
         graph.addEdge(source, target, edge);
     }
 
     public void drawGraph(Graph<String, NamedEdge> graph) {
-        // View graph.dot using this url:
+        // View graph.dot using this url: 
         // https://dreampuf.github.io/GraphvizOnline/
 
         // Create DOT exporter
         DOTExporter<String, NamedEdge> exporter = new DOTExporter<>();
-        exporter.setVertexAttributeProvider((v) ->
-                Map.of("label", DefaultAttribute.createAttribute(v)));
-        exporter.setEdgeAttributeProvider((e) ->
-                Map.of("label", DefaultAttribute.createAttribute(e.toString())));
+        exporter.setVertexAttributeProvider((v) -> Map.of("label", DefaultAttribute.createAttribute(v)));
+        exporter.setEdgeAttributeProvider((e) -> Map.of("label", DefaultAttribute.createAttribute(e.toString())));
 
         // Export to DOT file
         try {
