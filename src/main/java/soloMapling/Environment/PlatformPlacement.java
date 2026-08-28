@@ -42,7 +42,7 @@ import static soloMapling.server.SoloMaplingUtilities.getMapleMapById;
 // the wave orchestration. Ours (SoloMapling).
 public class PlatformPlacement {
 
-    private static final String BASE_PATH = "src/main/java/soloMapling/ArtificialPlayer/BotMovementSystem/movementDataPackets";
+    private static final String BASE_PATH = "soloMapling/ArtificialPlayer/BotMovementSystem/movementDataPackets";
     // Tolerance for Y-coordinate matching when determining if a character is on a
     // platform;
     // characters within this vertical distance of the platform are considered "on"
